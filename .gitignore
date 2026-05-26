@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Data — never commit, too large
+data/raw/
+data/processed/
+
+# Models — versioned in MLflow instead
+models/
+mlruns/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+nohup.out
