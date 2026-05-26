@@ -1,0 +1,56 @@
+# docker-compose.yml — SessionScout full stack
+#
+# Services:
+#   api   — FastAPI inference server (port 8000)
+#   redis — Prediction cache (port 6379)
+#
+# Usage:
+#   docker-compose up --build     # start everything
+#   docker-compose up -d          # start in background
+#   docker-compose down           # stop everything
+#   docker-compose logs -f api    # follow API logs
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sessionscout-api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      # Mount models directory so you can update weights without rebuilding
+      - ./models:/app/models:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    image: redis:7-alpine
+    container_name: sessionscout-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
