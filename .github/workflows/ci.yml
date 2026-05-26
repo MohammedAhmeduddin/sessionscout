@@ -18,7 +18,7 @@ jobs:
           cache: pip
       - run: pip install ruff black
       - run: ruff check src/ tests/ scripts/
-      - run: black --check src/ tests/ scripts/
+      - run: black --check --target-version py311 src/ tests/ scripts/
 
   test:
     name: Tests (Python ${{ matrix.python-version }})

@@ -33,7 +33,7 @@ def validate_raw():
     logger.info("Checking raw data files...")
     files = {
         "Retail Rocket events.csv": cfg.paths.rr_events,
-        "OTTO train.jsonl":         cfg.paths.otto_train,
+        "OTTO train.jsonl": cfg.paths.otto_train,
     }
     found = 0
     for name, path in files.items():
@@ -53,11 +53,13 @@ def validate_processed():
     logger.info("Checking processed outputs...")
     for name, path in [
         ("sequences.parquet", cfg.paths.sequences_parquet),
-        ("features.parquet",  cfg.paths.features_parquet),
+        ("features.parquet", cfg.paths.features_parquet),
     ]:
         if path.exists():
             df = pd.read_parquet(path)
-            rate = f"conversion: {df['label'].mean():.3f}" if "label" in df.columns else ""
+            rate = (
+                f"conversion: {df['label'].mean():.3f}" if "label" in df.columns else ""
+            )
             logger.info(f"  ✓ {name:<25} {len(df):>8,} rows  {rate}")
         else:
             logger.info(f"  ✗ {name:<25} not found")
@@ -65,6 +67,7 @@ def validate_processed():
 
 def run_sequences(dev: bool = False):
     from sessionscout.features.sequences import build_sequence_dataset
+
     logger.info("=" * 50)
     logger.info("STEP 1/2 — Building event sequences")
     logger.info("=" * 50)
@@ -76,6 +79,7 @@ def run_sequences(dev: bool = False):
 
 def run_features():
     from sessionscout.features.engineering import build_feature_matrix
+
     logger.info("=" * 50)
     logger.info("STEP 2/2 — Building feature matrix")
     logger.info("=" * 50)
@@ -87,11 +91,12 @@ def run_features():
 
 def main():
     parser = argparse.ArgumentParser(description="SessionScout data pipeline")
-    parser.add_argument("--dev",            action="store_true",
-                        help="Dev mode: 50K OTTO sessions (~5 min)")
+    parser.add_argument(
+        "--dev", action="store_true", help="Dev mode: 50K OTTO sessions (~5 min)"
+    )
     parser.add_argument("--sequences-only", action="store_true")
-    parser.add_argument("--features-only",  action="store_true")
-    parser.add_argument("--validate",       action="store_true")
+    parser.add_argument("--features-only", action="store_true")
+    parser.add_argument("--validate", action="store_true")
     args = parser.parse_args()
 
     if args.validate:

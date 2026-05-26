@@ -23,7 +23,8 @@ import logging
 from pathlib import Path
 
 import matplotlib
-matplotlib.use("Agg")   # non-interactive backend — works without display
+
+matplotlib.use("Agg")  # non-interactive backend — works without display
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -67,7 +68,7 @@ def compute_shap_values(
     logger.info(f"Computing SHAP values for {len(X_sample):,} samples...")
 
     # TreeExplainer is exact for tree-based models (not approximate)
-    explainer   = shap.TreeExplainer(model)
+    explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X_sample)
 
     logger.info("SHAP values computed.")
@@ -111,7 +112,7 @@ def plot_shap_summary(
 def print_top_features(shap_values: np.ndarray, feature_names: list, top_k: int = 10):
     """Print mean absolute SHAP value per feature — global importance."""
     mean_abs = np.abs(shap_values).mean(axis=0)
-    ranked   = sorted(zip(feature_names, mean_abs), key=lambda x: x[1], reverse=True)
+    ranked = sorted(zip(feature_names, mean_abs), key=lambda x: x[1], reverse=True)
 
     logger.info(f"\nTop {top_k} features by mean |SHAP value|:")
     logger.info(f"  {'Feature':<25} {'Mean |SHAP|':>12}")
@@ -147,15 +148,13 @@ def run_shap_analysis():
         )
 
     df = pd.read_parquet(path)
-    feature_cols = [
-        c for c in df.columns
-        if c not in ["session_id", "label", "source"]
-    ]
+    feature_cols = [c for c in df.columns if c not in ["session_id", "label", "source"]]
     X = df[feature_cols].values.astype(np.float32)
     y = df["label"].values.astype(np.float32)
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
+        X,
+        y,
         test_size=0.2,
         stratify=y,
         random_state=cfg.sequence.random_seed,
@@ -176,9 +175,7 @@ def run_shap_analysis():
     model.fit(X_train, y_train, verbose=False)
 
     # SHAP values on test set
-    shap_values, explainer, X_sample = compute_shap_values(
-        model, X_test, feature_cols
-    )
+    shap_values, explainer, X_sample = compute_shap_values(model, X_test, feature_cols)
 
     # Summary plot
     plot_path = plot_shap_summary(shap_values, X_sample, feature_cols)
@@ -186,11 +183,9 @@ def run_shap_analysis():
     # Print rankings
     ranked = print_top_features(shap_values, feature_cols)
 
-    logger.info(f"\nKey insight:")
+    logger.info("\nKey insight:")
     top_feat = ranked[0][0]
-    logger.info(
-        f"  '{top_feat}' has the highest SHAP impact on conversion prediction."
-    )
+    logger.info(f"  '{top_feat}' has the highest SHAP impact on conversion prediction.")
     logger.info(f"  Plot saved → {plot_path}")
 
     return shap_values, feature_cols, ranked
@@ -198,6 +193,7 @@ def run_shap_analysis():
 
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(message)s",

@@ -62,7 +62,7 @@ class BatchResultItem(BaseModel):
 
 class BatchResponse(BaseModel):
     results: List[BatchResultItem]
-    total:   int
+    total: int
     latency_ms: float
 
 
@@ -75,7 +75,7 @@ async def batch_predict(req: BatchRequest, request: Request):
     Returns results in the same order as the input.
     """
     t_start = time.perf_counter()
-    model   = request.app.state.model
+    model = request.app.state.model
 
     # Pad all sequences to max_len
     padded_seqs = [pad_sequence(item.sequence) for item in req.sessions]
@@ -86,12 +86,12 @@ async def batch_predict(req: BatchRequest, request: Request):
 
     for i in range(0, len(padded_seqs), mini_batch_size):
         batch_seqs = padded_seqs[i : i + mini_batch_size]
-        ids  = torch.tensor(batch_seqs, dtype=torch.long)
+        ids = torch.tensor(batch_seqs, dtype=torch.long)
         mask = (ids != cfg.vocab.pad).float()
 
         with torch.no_grad():
             logits = model(ids, mask)
-            probs  = torch.sigmoid(logits).tolist()
+            probs = torch.sigmoid(logits).tolist()
 
         all_probs.extend(probs)
 
@@ -105,9 +105,7 @@ async def batch_predict(req: BatchRequest, request: Request):
 
     latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
 
-    logger.info(
-        f"batch | n={len(results)} sessions | {latency_ms:.1f}ms"
-    )
+    logger.info(f"batch | n={len(results)} sessions | {latency_ms:.1f}ms")
 
     return BatchResponse(
         results=results,

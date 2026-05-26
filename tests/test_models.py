@@ -7,7 +7,6 @@ Verifies output shapes, dtypes, and basic properties.
 
 import sys
 from pathlib import Path
-import pytest
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -16,8 +15,8 @@ from sessionscout.config import cfg
 from sessionscout.model.lstm import SessionLSTM
 from sessionscout.model.transformer import SessionTransformer
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def make_batch(batch_size=4, seq_len=None, n_pad=50):
     """Create a synthetic batch with some PAD tokens."""
@@ -29,6 +28,7 @@ def make_batch(batch_size=4, seq_len=None, n_pad=50):
 
 
 # ── LSTM tests ────────────────────────────────────────────────────────────────
+
 
 class TestLSTM:
     def test_output_shape(self):
@@ -47,7 +47,7 @@ class TestLSTM:
         model = SessionLSTM()
         ids, mask = make_batch(8)
         logits = model(ids, mask)
-        probs  = torch.sigmoid(logits)
+        probs = torch.sigmoid(logits)
         assert (probs >= 0).all()
         assert (probs <= 1).all()
 
@@ -60,10 +60,10 @@ class TestLSTM:
     def test_all_pad_sequence(self):
         """Model should not crash on a mostly-PAD sequence."""
         model = SessionLSTM()
-        ids  = torch.zeros(2, cfg.sequence.max_len, dtype=torch.long)
-        ids[:, -1] = cfg.vocab.view   # one real token
+        ids = torch.zeros(2, cfg.sequence.max_len, dtype=torch.long)
+        ids[:, -1] = cfg.vocab.view  # one real token
         mask = (ids != cfg.vocab.pad).float()
-        out  = model(ids, mask)
+        out = model(ids, mask)
         assert out.shape == (2,)
 
     def test_parameter_count(self):
@@ -77,7 +77,7 @@ class TestLSTM:
         ids, mask = make_batch(4)
         labels = torch.zeros(4)
         logits = model(ids, mask)
-        loss   = torch.nn.BCEWithLogitsLoss()(logits, labels)
+        loss = torch.nn.BCEWithLogitsLoss()(logits, labels)
         loss.backward()
         for name, param in model.named_parameters():
             if param.requires_grad:
@@ -85,6 +85,7 @@ class TestLSTM:
 
 
 # ── Transformer tests ─────────────────────────────────────────────────────────
+
 
 class TestTransformer:
     def test_output_shape(self):
@@ -103,7 +104,7 @@ class TestTransformer:
         model = SessionTransformer()
         ids, mask = make_batch(8)
         logits = model(ids, mask)
-        probs  = torch.sigmoid(logits)
+        probs = torch.sigmoid(logits)
         assert (probs >= 0).all()
         assert (probs <= 1).all()
 
@@ -115,29 +116,29 @@ class TestTransformer:
 
     def test_attention_weights_shape(self):
         model = SessionTransformer()
-        ids  = torch.randint(1, cfg.vocab.size, (cfg.sequence.max_len,))
+        ids = torch.randint(1, cfg.vocab.size, (cfg.sequence.max_len,))
         mask = (ids != cfg.vocab.pad).float()
         attn = model.get_attention_weights(ids, mask)
-        assert attn.shape == (cfg.model.num_heads,
-                               cfg.sequence.max_len,
-                               cfg.sequence.max_len)
+        assert attn.shape == (
+            cfg.model.num_heads,
+            cfg.sequence.max_len,
+            cfg.sequence.max_len,
+        )
 
     def test_parameter_count_smaller_than_lstm(self):
         lstm = SessionLSTM()
-        tf   = SessionTransformer()
+        tf = SessionTransformer()
         n_lstm = sum(p.numel() for p in lstm.parameters())
-        n_tf   = sum(p.numel() for p in tf.parameters())
+        n_tf = sum(p.numel() for p in tf.parameters())
         # Transformer should be smaller (attention is parameter-efficient)
-        assert n_tf < n_lstm, (
-            f"Expected Transformer ({n_tf}) < LSTM ({n_lstm})"
-        )
+        assert n_tf < n_lstm, f"Expected Transformer ({n_tf}) < LSTM ({n_lstm})"
 
     def test_gradients_flow(self):
         model = SessionTransformer()
         ids, mask = make_batch(4)
         labels = torch.zeros(4)
         logits = model(ids, mask)
-        loss   = torch.nn.BCEWithLogitsLoss()(logits, labels)
+        loss = torch.nn.BCEWithLogitsLoss()(logits, labels)
         loss.backward()
         for name, param in model.named_parameters():
             if param.requires_grad:
@@ -147,14 +148,14 @@ class TestTransformer:
         """Verify positional encoding actually affects the output."""
         model = SessionTransformer()
         model.eval()
-        ids  = torch.randint(1, cfg.vocab.size, (1, cfg.sequence.max_len))
+        ids = torch.randint(1, cfg.vocab.size, (1, cfg.sequence.max_len))
         mask = (ids != cfg.vocab.pad).float()
         with torch.no_grad():
             out1 = model(ids, mask)
             # Same tokens, different positions — shift sequence by one
-            ids2        = ids.clone()
+            ids2 = ids.clone()
             ids2[:, 1:] = ids[:, :-1]
-            ids2[:, 0]  = cfg.vocab.pad
-            mask2       = (ids2 != cfg.vocab.pad).float()
-            out2        = model(ids2, mask2)
+            ids2[:, 0] = cfg.vocab.pad
+            mask2 = (ids2 != cfg.vocab.pad).float()
+            out2 = model(ids2, mask2)
         assert out1.item() != out2.item()

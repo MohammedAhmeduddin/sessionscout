@@ -33,11 +33,10 @@ def load_retailrocket() -> pd.DataFrame:
     df = pd.read_csv(path)
     df = df.rename(columns={"visitorid": "session_id", "event": "event_type"})
     df["timestamp_sec"] = df["timestamp"] / 1000.0
-    df["source"]        = "retailrocket"
-    df["session_id"]    = "rr_" + df["session_id"].astype(str)
-    df["event_type"]    = (
-        df["event_type"].str.lower().str.strip()
-        .replace({"transaction": "purchase"})
+    df["source"] = "retailrocket"
+    df["session_id"] = "rr_" + df["session_id"].astype(str)
+    df["event_type"] = (
+        df["event_type"].str.lower().str.strip().replace({"transaction": "purchase"})
     )
     df = df[["session_id", "timestamp_sec", "event_type", "source"]]
     logger.info(
@@ -69,12 +68,14 @@ def load_otto(max_sessions: Optional[int] = None) -> pd.DataFrame:
             obj = json.loads(line)
             sid = f"otto_{obj['session']}"
             for ev in obj["events"]:
-                records.append({
-                    "session_id":    sid,
-                    "timestamp_sec": float(ev["ts"]),
-                    "event_type":    type_map.get(ev["type"], ev["type"]),
-                    "source":        "otto",
-                })
+                records.append(
+                    {
+                        "session_id": sid,
+                        "timestamp_sec": float(ev["ts"]),
+                        "event_type": type_map.get(ev["type"], ev["type"]),
+                        "source": "otto",
+                    }
+                )
             n += 1
             if max_sessions and n >= max_sessions:
                 break
@@ -87,9 +88,7 @@ def load_otto(max_sessions: Optional[int] = None) -> pd.DataFrame:
     return df
 
 
-def inject_gap_tokens(
-    events: List[Tuple[float, str]]
-) -> List[Tuple[float, str]]:
+def inject_gap_tokens(events: List[Tuple[float, str]]) -> List[Tuple[float, str]]:
     """
     Insert GAP_SHORT or GAP_LONG tokens between events with inactivity.
 
@@ -135,7 +134,7 @@ def build_session_sequence(session_events: pd.DataFrame) -> Optional[Dict]:
 
     # Label and counts from original events (before any filtering)
     original_types = [ev for _, ev in raw_events]
-    label   = int("purchase" in original_types)
+    label = int("purchase" in original_types)
     n_views = original_types.count("view")
     n_carts = original_types.count("addtocart")
 
@@ -145,16 +144,12 @@ def build_session_sequence(session_events: pd.DataFrame) -> Optional[Dict]:
     # Convert to token IDs — PURCHASE intentionally excluded
     # At inference time the model scores sessions before purchase occurs
     token_map = {
-        "view":      cfg.vocab.view,
+        "view": cfg.vocab.view,
         "addtocart": cfg.vocab.add_cart,
         "GAP_SHORT": cfg.vocab.gap_short,
-        "GAP_LONG":  cfg.vocab.gap_long,
+        "GAP_LONG": cfg.vocab.gap_long,
     }
-    tokens = [
-        token_map[ev]
-        for _, ev in events_with_gaps
-        if ev in token_map
-    ]
+    tokens = [token_map[ev] for _, ev in events_with_gaps if ev in token_map]
 
     # After removing purchase tokens, re-check min_len
     if len(tokens) < cfg.sequence.min_len:
@@ -172,10 +167,10 @@ def build_session_sequence(session_events: pd.DataFrame) -> Optional[Dict]:
 
     return {
         "sequence": padded,
-        "seq_len":  actual_len,
-        "label":    label,
-        "n_views":  n_views,
-        "n_carts":  n_carts,
+        "seq_len": actual_len,
+        "label": label,
+        "n_views": n_views,
+        "n_carts": n_carts,
     }
 
 
@@ -190,7 +185,7 @@ def build_sequence_dataset(
 
     frames = []
     for loader, name in [
-        (load_retailrocket,                    "Retail Rocket"),
+        (load_retailrocket, "Retail Rocket"),
         (lambda: load_otto(max_otto_sessions), "OTTO"),
     ]:
         try:
@@ -210,7 +205,7 @@ def build_sequence_dataset(
     logger.info("\nTokenizing sessions...")
     records, skipped = [], 0
     groups = list(events_df.groupby("session_id"))
-    total  = len(groups)
+    total = len(groups)
 
     for i, (session_id, group) in enumerate(groups):
         if i > 0 and i % 100_000 == 0:
@@ -219,11 +214,13 @@ def build_sequence_dataset(
         if result is None:
             skipped += 1
             continue
-        records.append({
-            "session_id": session_id,
-            "source":     group["source"].iloc[0],
-            **result,
-        })
+        records.append(
+            {
+                "session_id": session_id,
+                "source": group["source"].iloc[0],
+                **result,
+            }
+        )
 
     df = pd.DataFrame(records)
     logger.info(
@@ -237,6 +234,7 @@ def build_sequence_dataset(
 
     cfg.paths.data_processed.mkdir(parents=True, exist_ok=True)
     import json as _json
+
     with open(cfg.paths.vocab_json, "w") as f:
         _json.dump({"id_to_event": VOCAB, "event_to_id": EVENT_TO_TOKEN}, f, indent=2)
 
@@ -247,7 +245,9 @@ def build_sequence_dataset(
 
 
 if __name__ == "__main__":
-    import argparse, sys
+    import argparse
+    import sys
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(message)s",

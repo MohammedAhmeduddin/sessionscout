@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 def compute_precision_at_k(y_true, y_scores, k):
     """What fraction of the top-K predicted sessions actually converted?"""
-    top_k_idx  = np.argsort(y_scores)[::-1][:k]
+    top_k_idx = np.argsort(y_scores)[::-1][:k]
     top_k_true = y_true[top_k_idx]
     return top_k_true.mean()
 
@@ -70,15 +70,16 @@ def run_sensitivity_analysis(
     logger.info("=" * 60)
     logger.info("Business Impact Sensitivity Analysis")
     logger.info("=" * 60)
-    logger.info(f"\nAssumptions:")
+    logger.info("\nAssumptions:")
     logger.info(f"  Top-K sessions flagged per day: {k:,}")
     logger.info(f"  Model precision@{k}:              {precision_at_k:.3f}")
     logger.info(
-        f"  True positives per day:          "
-        f"{precision_at_k * k:.0f} sessions"
+        f"  True positives per day:          " f"{precision_at_k * k:.0f} sessions"
     )
-    logger.info(f"  Intervention cost per session:   ${cfg.business.intervention_cost:.2f}")
-    logger.info(f"\nSensitivity table (daily recoverable revenue $):")
+    logger.info(
+        f"  Intervention cost per session:   ${cfg.business.intervention_cost:.2f}"
+    )
+    logger.info("\nSensitivity table (daily recoverable revenue $):")
 
     rows = []
     for aov in cfg.business.aov_range:
@@ -100,15 +101,14 @@ def run_sensitivity_analysis(
     logger.info(f"\n{table.to_string()}")
 
     # Annual numbers for the best case
-    best_aov    = cfg.business.aov_range[-1]
+    best_aov = cfg.business.aov_range[-1]
     best_uplift = cfg.business.uplift_range[-1]
-    daily_best  = (
-        precision_at_k * k * best_uplift * best_aov
-        - k * cfg.business.intervention_cost
+    daily_best = (
+        precision_at_k * k * best_uplift * best_aov - k * cfg.business.intervention_cost
     )
     annual_best = daily_best * 365
 
-    logger.info(f"\nBest-case annual impact:")
+    logger.info("\nBest-case annual impact:")
     logger.info(
         f"  AOV=${best_aov}, Uplift={int(best_uplift*100)}%, "
         f"Precision@{k}={precision_at_k:.3f}"
@@ -116,8 +116,8 @@ def run_sensitivity_analysis(
     logger.info(f"  Daily:  ${daily_best:,.0f}")
     logger.info(f"  Annual: ${annual_best:,.0f}")
 
-    logger.info(f"\n⚠ These are estimates under documented assumptions.")
-    logger.info(f"  Real impact requires A/B testing with the deployed model.")
+    logger.info("\n⚠ These are estimates under documented assumptions.")
+    logger.info("  Real impact requires A/B testing with the deployed model.")
 
     # Save
     if save_path is None:
@@ -153,9 +153,7 @@ def _compute_lstm_precision_at_k(k: int) -> float:
         model.eval()
 
         _, _, test_ds = load_datasets()
-        _, _, test_loader = make_dataloaders(
-            test_ds, test_ds, test_ds, batch_size=512
-        )
+        _, _, test_loader = make_dataloaders(test_ds, test_ds, test_ds, batch_size=512)
 
         all_scores, all_labels = [], []
         with torch.no_grad():

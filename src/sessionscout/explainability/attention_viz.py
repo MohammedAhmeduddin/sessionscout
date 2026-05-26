@@ -22,9 +22,9 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import numpy as np
 import torch
 
@@ -83,24 +83,24 @@ def plot_attention_heatmap(
 
     # Only show non-PAD positions — strip leading zeros
     non_pad_mask = [t != cfg.vocab.pad for t in sequence]
-    non_pad_idx  = [i for i, m in enumerate(non_pad_mask) if m]
+    non_pad_idx = [i for i, m in enumerate(non_pad_mask) if m]
 
     if len(non_pad_idx) == 0:
         logger.warning("All tokens are PAD — nothing to visualise.")
         return None
 
     # Slice to non-PAD region
-    w_trimmed    = weights[np.ix_(non_pad_idx, non_pad_idx)]
-    token_names  = [tokens_to_names(sequence)[i] for i in non_pad_idx]
+    w_trimmed = weights[np.ix_(non_pad_idx, non_pad_idx)]
+    token_names = [tokens_to_names(sequence)[i] for i in non_pad_idx]
 
     # Shorten long names for display
     short_names = {
-        "VIEW":      "VIEW",
-        "ADD_CART":  "CART",
-        "PURCHASE":  "BUY",
+        "VIEW": "VIEW",
+        "ADD_CART": "CART",
+        "PURCHASE": "BUY",
         "GAP_SHORT": "G_S",
-        "GAP_LONG":  "G_L",
-        "PAD":       "PAD",
+        "GAP_LONG": "G_L",
+        "PAD": "PAD",
     }
     labels = [short_names.get(n, n) for n in token_names]
 
@@ -130,8 +130,11 @@ def plot_attention_heatmap(
             val = w_trimmed[i, j]
             if val > 0.15:
                 ax.text(
-                    j, i, f"{val:.2f}",
-                    ha="center", va="center",
+                    j,
+                    i,
+                    f"{val:.2f}",
+                    ha="center",
+                    va="center",
                     fontsize=6,
                     color="white" if val > 0.5 else "black",
                 )
@@ -166,13 +169,11 @@ def analyse_session(
     save_dir = save_dir or cfg.paths.models_dir
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    ids  = torch.tensor(sequence, dtype=torch.long)
+    ids = torch.tensor(sequence, dtype=torch.long)
     mask = (ids != cfg.vocab.pad).float()
 
     with torch.no_grad():
         attn_weights = model.get_attention_weights(ids, mask)
-
-    token_names = tokens_to_names(sequence)
 
     # Plot all 4 heads
     for head_idx in range(attn_weights.shape[0]):
@@ -185,19 +186,21 @@ def analyse_session(
         )
 
     # Print which event pairs have highest attention
-    non_pad    = [(i, t) for i, t in enumerate(sequence) if t != cfg.vocab.pad]
-    mean_attn  = attn_weights.mean(dim=0).numpy()
+    non_pad = [(i, t) for i, t in enumerate(sequence) if t != cfg.vocab.pad]
+    mean_attn = attn_weights.mean(dim=0).numpy()
 
-    logger.info(f"\nTop 5 attended event pairs (averaged across heads):")
+    logger.info("\nTop 5 attended event pairs (averaged across heads):")
     pairs = []
     for qi, qt in non_pad:
         for ki, kt in non_pad:
             if qi != ki:
-                pairs.append((
-                    mean_attn[qi, ki],
-                    VOCAB.get(qt, str(qt)),
-                    VOCAB.get(kt, str(kt)),
-                ))
+                pairs.append(
+                    (
+                        mean_attn[qi, ki],
+                        VOCAB.get(qt, str(qt)),
+                        VOCAB.get(kt, str(kt)),
+                    )
+                )
     pairs.sort(reverse=True)
 
     for score, q_name, k_name in pairs[:5]:
@@ -227,10 +230,10 @@ def run_attention_analysis():
     # Find an interesting converting session
     # (one with carts and gaps — the hesitation pattern)
     converted = seq_df[
-        (seq_df["label"] == 1) &
-        (seq_df["n_carts"] > 0) &
-        (seq_df["seq_len"] >= 5) &
-        (seq_df["seq_len"] <= 20)
+        (seq_df["label"] == 1)
+        & (seq_df["n_carts"] > 0)
+        & (seq_df["seq_len"] >= 5)
+        & (seq_df["seq_len"] <= 20)
     ]
 
     if len(converted) == 0:
@@ -240,20 +243,20 @@ def run_attention_analysis():
     # Pick the first one
     row = converted.iloc[0]
     session_id = row["session_id"]
-    sequence   = row["sequence"]
+    sequence = row["sequence"]
 
     logger.info(f"\nAnalysing converting session: {session_id}")
     logger.info(f"  Sequence length: {row['seq_len']} events")
     logger.info(f"  Events: {tokens_to_names(sequence)}")
 
-    attn = analyse_session(model, sequence, session_id=session_id)
+    analyse_session(model, sequence, session_id=session_id)
 
     # Also analyse a non-converting session for comparison
     not_converted = seq_df[
-        (seq_df["label"] == 0) &
-        (seq_df["n_carts"] > 0) &
-        (seq_df["seq_len"] >= 5) &
-        (seq_df["seq_len"] <= 20)
+        (seq_df["label"] == 0)
+        & (seq_df["n_carts"] > 0)
+        & (seq_df["seq_len"] >= 5)
+        & (seq_df["seq_len"] <= 20)
     ]
 
     if len(not_converted) > 0:
@@ -261,7 +264,8 @@ def run_attention_analysis():
         logger.info(f"\nAnalysing non-converting session: {row2['session_id']}")
         logger.info(f"  Sequence length: {row2['seq_len']} events")
         analyse_session(
-            model, row2["sequence"],
+            model,
+            row2["sequence"],
             session_id=row2["session_id"],
             save_dir=cfg.paths.models_dir / "non_converting",
         )
@@ -272,6 +276,7 @@ def run_attention_analysis():
 
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(message)s",

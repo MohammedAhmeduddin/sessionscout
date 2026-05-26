@@ -55,9 +55,9 @@ class SessionDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         return {
-            "input_ids":      self.input_ids[idx],       # shape: (64,)
-            "attention_mask": self.attention_mask[idx],   # shape: (64,)
-            "label":          self.labels[idx],           # scalar
+            "input_ids": self.input_ids[idx],  # shape: (64,)
+            "attention_mask": self.attention_mask[idx],  # shape: (64,)
+            "label": self.labels[idx],  # scalar
         }
 
 
@@ -107,8 +107,8 @@ def load_datasets(
     )
 
     train_ds = SessionDataset(train_df.reset_index(drop=True))
-    val_ds   = SessionDataset(val_df.reset_index(drop=True))
-    test_ds  = SessionDataset(test_df.reset_index(drop=True))
+    val_ds = SessionDataset(val_df.reset_index(drop=True))
+    test_ds = SessionDataset(test_df.reset_index(drop=True))
 
     return train_ds, val_ds, test_ds
 
@@ -126,14 +126,8 @@ def make_dataloaders(
     """
     bs = batch_size or cfg.training.batch_size
 
-    train_loader = DataLoader(
-        train_ds, batch_size=bs, shuffle=True, num_workers=0
-    )
-    val_loader = DataLoader(
-        val_ds, batch_size=bs, shuffle=False, num_workers=0
-    )
-    test_loader = DataLoader(
-        test_ds, batch_size=bs, shuffle=False, num_workers=0
-    )
+    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, num_workers=0)
+    test_loader = DataLoader(test_ds, batch_size=bs, shuffle=False, num_workers=0)
 
     return train_loader, val_loader, test_loader

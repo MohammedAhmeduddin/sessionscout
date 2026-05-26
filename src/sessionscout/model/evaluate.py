@@ -9,7 +9,6 @@ Usage:
 
 import logging
 import sys
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -36,21 +35,21 @@ def evaluate_deep_model(model, loader, device="cpu") -> dict:
 
     with torch.no_grad():
         for batch in loader:
-            ids    = batch["input_ids"].to(device)
-            mask   = batch["attention_mask"].to(device)
+            ids = batch["input_ids"].to(device)
+            mask = batch["attention_mask"].to(device)
             logits = model(ids, mask)
             all_logits.extend(torch.sigmoid(logits).cpu().tolist())
             all_labels.extend(batch["label"].tolist())
 
-    probs  = np.array(all_logits)
+    probs = np.array(all_logits)
     labels = np.array(all_labels)
-    preds  = (probs >= 0.5).astype(int)
+    preds = (probs >= 0.5).astype(int)
 
     return {
-        "auc":       round(roc_auc_score(labels, probs), 4),
-        "ap":        round(average_precision_score(labels, probs), 4),
+        "auc": round(roc_auc_score(labels, probs), 4),
+        "ap": round(average_precision_score(labels, probs), 4),
         "precision": round(precision_score(labels, preds, zero_division=0), 4),
-        "recall":    round(recall_score(labels, preds, zero_division=0), 4),
+        "recall": round(recall_score(labels, preds, zero_division=0), 4),
     }
 
 
@@ -66,8 +65,7 @@ def print_results_table(results: dict):
     logger.info("MODEL COMPARISON TABLE")
     logger.info("=" * 65)
     logger.info(
-        f"  {'Model':<25} {'Val AUC':>8} {'Test AUC':>9} "
-        f"{'AP':>7} {'P@500':>7}"
+        f"  {'Model':<25} {'Val AUC':>8} {'Test AUC':>9} " f"{'AP':>7} {'P@500':>7}"
     )
     logger.info(f"  {'-'*25} {'-'*8} {'-'*9} {'-'*7} {'-'*7}")
 

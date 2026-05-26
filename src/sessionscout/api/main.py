@@ -56,6 +56,7 @@ def get_redis_client():
     """Connect to Redis for prediction caching. Returns None if unavailable."""
     try:
         import redis
+
         client = redis.from_url(cfg.api.redis_url, decode_responses=True)
         client.ping()
         logger.info(f"Redis connected at {cfg.api.redis_url}")
@@ -103,16 +104,16 @@ app.add_middleware(
 )
 
 app.include_router(predict_router, prefix="/api/v1")
-app.include_router(batch_router,   prefix="/api/v1")
+app.include_router(batch_router, prefix="/api/v1")
 
 
 @app.get("/health")
 async def health():
     """Health check — confirms model is loaded."""
     return {
-        "status":      "healthy",
-        "model":       "lstm",
-        "redis":       app.state.redis is not None,
-        "vocab_size":  cfg.vocab.size,
+        "status": "healthy",
+        "model": "lstm",
+        "redis": app.state.redis is not None,
+        "vocab_size": cfg.vocab.size,
         "max_seq_len": cfg.sequence.max_len,
     }

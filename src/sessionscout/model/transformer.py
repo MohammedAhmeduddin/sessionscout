@@ -51,8 +51,7 @@ class PositionalEncoding(nn.Module):
 
         # Frequency denominator: 10000^(2i/d)
         div_term = torch.exp(
-            torch.arange(0, embed_dim, 2).float()
-            * (-math.log(10000.0) / embed_dim)
+            torch.arange(0, embed_dim, 2).float() * (-math.log(10000.0) / embed_dim)
         )
 
         pe[:, 0::2] = torch.sin(position * div_term)  # even dims
@@ -86,29 +85,27 @@ class SessionTransformer(nn.Module):
 
     def __init__(
         self,
-        vocab_size: int  = None,
-        embed_dim: int   = None,
-        num_heads: int   = None,
-        num_layers: int  = None,
-        ff_dim: int      = None,
-        dropout: float   = None,
+        vocab_size: int = None,
+        embed_dim: int = None,
+        num_heads: int = None,
+        num_layers: int = None,
+        ff_dim: int = None,
+        dropout: float = None,
         max_seq_len: int = None,
     ):
         super().__init__()
 
-        vocab_size  = vocab_size  or cfg.model.vocab_size
-        embed_dim   = embed_dim   or cfg.model.embed_dim
-        num_heads   = num_heads   or cfg.model.num_heads
-        num_layers  = num_layers  or cfg.model.num_encoder_layers
-        ff_dim      = ff_dim      or cfg.model.ff_dim
-        dropout     = dropout     if dropout is not None else cfg.model.dropout
+        vocab_size = vocab_size or cfg.model.vocab_size
+        embed_dim = embed_dim or cfg.model.embed_dim
+        num_heads = num_heads or cfg.model.num_heads
+        num_layers = num_layers or cfg.model.num_encoder_layers
+        ff_dim = ff_dim or cfg.model.ff_dim
+        dropout = dropout if dropout is not None else cfg.model.dropout
         max_seq_len = max_seq_len or cfg.model.max_seq_len
 
         # Layer 1: Token embedding
         # padding_idx=0 ensures PAD tokens produce zero vectors
-        self.embedding = nn.Embedding(
-            vocab_size, embed_dim, padding_idx=cfg.vocab.pad
-        )
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=cfg.vocab.pad)
 
         # Layer 2: Positional encoding
         self.pos_encoding = PositionalEncoding(embed_dim, max_seq_len, dropout)
@@ -123,8 +120,8 @@ class SessionTransformer(nn.Module):
             nhead=num_heads,
             dim_feedforward=ff_dim,
             dropout=dropout,
-            batch_first=True,   # input shape: (batch, seq, embed)
-            norm_first=True,    # pre-norm: more stable training
+            batch_first=True,  # input shape: (batch, seq, embed)
+            norm_first=True,  # pre-norm: more stable training
         )
         self.encoder = nn.TransformerEncoder(
             encoder_layer,
@@ -156,7 +153,7 @@ class SessionTransformer(nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor,       # (B, seq_len)
+        input_ids: torch.Tensor,  # (B, seq_len)
         attention_mask: torch.Tensor,  # (B, seq_len) — 1=real, 0=PAD
     ) -> torch.Tensor:
         """
@@ -175,16 +172,16 @@ class SessionTransformer(nn.Module):
 
         # PyTorch TransformerEncoder uses src_key_padding_mask where
         # True = IGNORE this position (opposite of our attention_mask)
-        pad_mask = (attention_mask == 0)   # True where PAD
+        pad_mask = attention_mask == 0  # True where PAD
 
         # (B, 64, embed_dim) — each token attends to all non-PAD tokens
         x = self.encoder(x, src_key_padding_mask=pad_mask)
 
         # Masked mean pool — average only over real (non-PAD) positions
-        mask = attention_mask.unsqueeze(-1)          # (B, 64, 1)
-        summed = (x * mask).sum(dim=1)               # (B, embed_dim)
-        counts = mask.sum(dim=1).clamp(min=1.0)      # (B, 1)
-        pooled = summed / counts                      # (B, embed_dim)
+        mask = attention_mask.unsqueeze(-1)  # (B, 64, 1)
+        summed = (x * mask).sum(dim=1)  # (B, embed_dim)
+        counts = mask.sum(dim=1).clamp(min=1.0)  # (B, 1)
+        pooled = summed / counts  # (B, embed_dim)
 
         # (B, embed_dim) → (B, 1) → (B,)
         logits = self.head(pooled).squeeze(-1)
@@ -205,12 +202,14 @@ class SessionTransformer(nn.Module):
         """
         x = self.embedding(input_ids.unsqueeze(0))
         x = self.pos_encoding(x)
-        pad_mask = (attention_mask.unsqueeze(0) == 0)
+        pad_mask = attention_mask.unsqueeze(0) == 0
 
         # Access first layer's attention directly
         layer = self.encoder.layers[0]
         attn_out, attn_weights = layer.self_attn(
-            x, x, x,
+            x,
+            x,
+            x,
             key_padding_mask=pad_mask,
             need_weights=True,
             average_attn_weights=False,

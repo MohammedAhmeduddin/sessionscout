@@ -33,8 +33,8 @@ def build_session_features(sequences_df: pd.DataFrame) -> pd.DataFrame:
 
     # Identity
     feat["session_id"] = df["session_id"]
-    feat["label"]      = df["label"]
-    feat["source"]     = df["source"]
+    feat["label"] = df["label"]
+    feat["source"] = df["source"]
 
     # Raw counts
     feat["seq_len"] = df["seq_len"]
@@ -42,9 +42,9 @@ def build_session_features(sequences_df: pd.DataFrame) -> pd.DataFrame:
     feat["n_carts"] = df["n_carts"]
 
     # Intent ratios
-    feat["cart_rate"]   = df["n_carts"] / (df["n_views"] + 1e-8)
-    feat["view_depth"]  = df["n_views"] / (df["seq_len"] + 1e-8)
-    feat["has_cart"]    = (df["n_carts"] > 0).astype(int)
+    feat["cart_rate"] = df["n_carts"] / (df["n_views"] + 1e-8)
+    feat["view_depth"] = df["n_views"] / (df["seq_len"] + 1e-8)
+    feat["has_cart"] = (df["n_carts"] > 0).astype(int)
 
     # Gap counts from sequence tokens
     def count_tok(seq, tid):
@@ -56,8 +56,8 @@ def build_session_features(sequences_df: pd.DataFrame) -> pd.DataFrame:
     feat["n_gap_long"] = df["sequence"].apply(
         lambda s: count_tok(s, cfg.vocab.gap_long)
     )
-    feat["gap_ratio"] = (
-        (feat["n_gap_short"] + feat["n_gap_long"]) / (df["seq_len"] + 1e-8)
+    feat["gap_ratio"] = (feat["n_gap_short"] + feat["n_gap_long"]) / (
+        df["seq_len"] + 1e-8
     )
 
     # Last action flags — derived from counts only, no token ID leakage
@@ -66,9 +66,7 @@ def build_session_features(sequences_df: pd.DataFrame) -> pd.DataFrame:
     feat["last_is_view"] = (df["n_carts"] == 0).astype(int)
 
     # View-to-cart ratio
-    feat["view_cart_ratio"] = (
-        df["n_views"] / (df["n_carts"] + 1e-8)
-    ).clip(upper=100)
+    feat["view_cart_ratio"] = (df["n_views"] / (df["n_carts"] + 1e-8)).clip(upper=100)
 
     # Source
     feat["source_otto"] = (df["source"] == "otto").astype(int)
@@ -107,6 +105,7 @@ def build_feature_matrix(save_path: Optional[Path] = None) -> pd.DataFrame:
 
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(message)s",

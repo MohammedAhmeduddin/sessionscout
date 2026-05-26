@@ -30,6 +30,7 @@ router = APIRouter()
 
 # ── Request / Response schemas ────────────────────────────────────────────────
 
+
 class PredictRequest(BaseModel):
     session_id: str = Field(..., description="Unique session identifier")
     sequence: List[int] = Field(
@@ -76,6 +77,7 @@ class PredictResponse(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def pad_sequence(sequence: List[int]) -> List[int]:
     """Left-pad a sequence to max_len with PAD tokens."""
     max_len = cfg.sequence.max_len
@@ -104,17 +106,18 @@ def get_top_signals(sequence: List[int], top_k: int = 3) -> List[str]:
 def run_inference(model, sequence: List[int]) -> float:
     """Run model inference and return conversion probability."""
     padded = pad_sequence(sequence)
-    ids    = torch.tensor([padded], dtype=torch.long)
-    mask   = (ids != cfg.vocab.pad).float()
+    ids = torch.tensor([padded], dtype=torch.long)
+    mask = (ids != cfg.vocab.pad).float()
 
     with torch.no_grad():
         logit = model(ids, mask)
-        prob  = torch.sigmoid(logit).item()
+        prob = torch.sigmoid(logit).item()
 
     return round(prob, 4)
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
+
 
 @router.post("/predict", response_model=PredictResponse)
 async def predict(req: PredictRequest, request: Request):
@@ -140,21 +143,21 @@ async def predict(req: PredictRequest, request: Request):
         cached_result = redis.get(cache_key)
         if cached_result is not None:
             data = json.loads(cached_result)
-            data["cached"]     = True
+            data["cached"] = True
             data["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 2)
             return PredictResponse(**data)
 
     # ── Run inference ──────────────────────────────────────────────
-    prob        = run_inference(model, req.sequence)
+    prob = run_inference(model, req.sequence)
     top_signals = get_top_signals(req.sequence)
-    latency_ms  = round((time.perf_counter() - t_start) * 1000, 2)
+    latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
 
     result = {
-        "session_id":             req.session_id,
+        "session_id": req.session_id,
         "conversion_probability": prob,
-        "top_signals":            top_signals,
-        "cached":                 False,
-        "latency_ms":             latency_ms,
+        "top_signals": top_signals,
+        "cached": False,
+        "latency_ms": latency_ms,
     }
 
     # ── Store in Redis ─────────────────────────────────────────────
@@ -162,13 +165,11 @@ async def predict(req: PredictRequest, request: Request):
         redis.setex(
             cache_key,
             cfg.api.cache_ttl_seconds,
-            json.dumps({k: v for k, v in result.items()
-                        if k != "latency_ms"}),
+            json.dumps({k: v for k, v in result.items() if k != "latency_ms"}),
         )
 
     logger.info(
-        f"predict | session={req.session_id} | "
-        f"prob={prob:.4f} | {latency_ms:.1f}ms"
+        f"predict | session={req.session_id} | " f"prob={prob:.4f} | {latency_ms:.1f}ms"
     )
 
     return PredictResponse(**result)

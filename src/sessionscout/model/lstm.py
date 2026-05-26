@@ -49,26 +49,24 @@ class SessionLSTM(nn.Module):
     def __init__(
         self,
         vocab_size: int = None,
-        embed_dim: int  = None,
+        embed_dim: int = None,
         hidden_dim: int = None,
         num_layers: int = None,
-        dropout: float  = None,
+        dropout: float = None,
     ):
         super().__init__()
 
         # Use config defaults if not overridden
-        vocab_size  = vocab_size  or cfg.model.vocab_size
-        embed_dim   = embed_dim   or cfg.model.embed_dim
-        hidden_dim  = hidden_dim  or cfg.model.lstm_hidden
-        num_layers  = num_layers  or cfg.model.lstm_layers
-        dropout     = dropout     if dropout is not None else cfg.model.lstm_dropout
+        vocab_size = vocab_size or cfg.model.vocab_size
+        embed_dim = embed_dim or cfg.model.embed_dim
+        hidden_dim = hidden_dim or cfg.model.lstm_hidden
+        num_layers = num_layers or cfg.model.lstm_layers
+        dropout = dropout if dropout is not None else cfg.model.lstm_dropout
 
         # Layer 1: Embedding
         # Maps each token ID to a learnable dense vector
         # padding_idx=0 means PAD tokens always produce zero vectors
-        self.embedding = nn.Embedding(
-            vocab_size, embed_dim, padding_idx=cfg.vocab.pad
-        )
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=cfg.vocab.pad)
 
         # Layer 2: Bidirectional LSTM
         # bidirectional=True doubles the output size (hidden_dim * 2)
@@ -96,7 +94,7 @@ class SessionLSTM(nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor,       # (batch, seq_len)
+        input_ids: torch.Tensor,  # (batch, seq_len)
         attention_mask: torch.Tensor,  # (batch, seq_len) — 1=real, 0=PAD
     ) -> torch.Tensor:
         """
@@ -120,9 +118,9 @@ class SessionLSTM(nn.Module):
         mask = attention_mask.unsqueeze(-1)
 
         # Zero out PAD positions, sum real positions, divide by count
-        summed = (lstm_out * mask).sum(dim=1)          # (B, hidden_dim*2)
-        counts = mask.sum(dim=1).clamp(min=1.0)        # (B, 1)
-        pooled = summed / counts                        # (B, hidden_dim*2)
+        summed = (lstm_out * mask).sum(dim=1)  # (B, hidden_dim*2)
+        counts = mask.sum(dim=1).clamp(min=1.0)  # (B, 1)
+        pooled = summed / counts  # (B, hidden_dim*2)
 
         # (B, hidden_dim*2) → (B, 1) → (B,)
         logits = self.head(pooled).squeeze(-1)
