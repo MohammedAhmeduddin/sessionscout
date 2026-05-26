@@ -1,14 +1,6 @@
 """
 model/train.py — Training all 4 models with MLflow tracking.
 
-Run order:
-  1. Logistic Regression  (tabular features, ~30 seconds)
-  2. XGBoost              (tabular features, ~2 minutes)
-  3. LSTM                 (sequences, ~10 minutes)
-  4. Transformer          (sequences, ~20 minutes)
-
-Each model logs to MLflow so you can compare them all in one view.
-
 Usage:
   python -m sessionscout.model.train --model lr
   python -m sessionscout.model.train --model xgb
@@ -45,29 +37,20 @@ logger = logging.getLogger(__name__)
 # ── Shared utilities ──────────────────────────────────────────────────────────
 
 def load_tabular_splits():
-    """
-    Load features.parquet and split into train/val/test.
-    Returns X_train, X_val, X_test, y_train, y_val, y_test as numpy arrays.
-    """
     path = cfg.paths.features_parquet
     if not path.exists():
         raise FileNotFoundError(
             f"features.parquet not found at {path}\n"
             "Run: python -m sessionscout.features.engineering"
         )
-
     df = pd.read_parquet(path)
-
-    # Feature columns — exclude identity and label columns
     feature_cols = [
         c for c in df.columns
         if c not in ["session_id", "label", "source"]
     ]
-
     X = df[feature_cols].values.astype(np.float32)
     y = df["label"].values.astype(np.float32)
 
-    # Train / val / test split — stratified
     X_tv, X_test, y_tv, y_test = train_test_split(
         X, y,
         test_size=cfg.sequence.test_size,
@@ -81,22 +64,18 @@ def load_tabular_splits():
         stratify=y_tv,
         random_state=cfg.sequence.random_seed,
     )
-
     logger.info(
         f"Tabular splits: train={len(X_train):,} "
         f"val={len(X_val):,} test={len(X_test):,}"
     )
     logger.info(
-        f"Conversion rates — "
-        f"train: {y_train.mean():.3f} "
-        f"val: {y_val.mean():.3f} "
-        f"test: {y_test.mean():.3f}"
+        f"Conversion rates — train: {y_train.mean():.3f} "
+        f"val: {y_val.mean():.3f} test: {y_test.mean():.3f}"
     )
     return X_train, X_val, X_test, y_train, y_val, y_test, feature_cols
 
 
 def log_metrics(y_true, y_pred_proba, prefix):
-    """Compute and return AUC + AP metrics."""
     auc = roc_auc_score(y_true, y_pred_proba)
     ap  = average_precision_score(y_true, y_pred_proba)
     mlflow.log_metrics({
@@ -109,21 +88,7 @@ def log_metrics(y_true, y_pred_proba, prefix):
 # ── Model 1: Logistic Regression ─────────────────────────────────────────────
 
 def train_logistic_regression():
-    """
-    Brain 1 — Logistic Regression on tabular features.
-
-    This is the AUC floor. Any more complex model must beat this
-    to justify its added complexity. Takes ~30 seconds.
-
-    What it can do:
-      - Learn that has_cart=1 is a strong positive signal
-      - Learn that high gap_ratio is a negative signal
-      - Combine all 15 features linearly
-
-    What it cannot do:
-      - Understand the ORDER of events
-      - Know that VIEW after GAP_LONG is different from VIEW before
-    """
+    """Brain 1 — establishes the AUC floor."""
     logger.info("=" * 55)
     logger.info("Training Brain 1: Logistic Regression")
     logger.info("=" * 55)
@@ -137,14 +102,11 @@ def train_logistic_regression():
 
     with mlflow.start_run(run_name="logistic-regression"):
         t0 = time.time()
-
-        # Scale features — LR is sensitive to feature scale
         scaler = StandardScaler()
         X_train_s = scaler.fit_transform(X_train)
         X_val_s   = scaler.transform(X_val)
         X_test_s  = scaler.transform(X_test)
 
-        # class_weight='balanced' handles the 9% conversion rate
         model = LogisticRegression(
             max_iter=1000,
             class_weight="balanced",
@@ -152,27 +114,21 @@ def train_logistic_regression():
             C=1.0,
         )
         model.fit(X_train_s, y_train)
-
         elapsed = time.time() - t0
 
-        # Evaluate
         val_proba  = model.predict_proba(X_val_s)[:, 1]
         test_proba = model.predict_proba(X_test_s)[:, 1]
 
         val_auc,  val_ap  = log_metrics(y_val,  val_proba,  "val")
         test_auc, test_ap = log_metrics(y_test, test_proba, "test")
 
-        # Log params
         mlflow.log_params({
-            "model":         "logistic_regression",
-            "C":             1.0,
-            "class_weight":  "balanced",
-            "n_features":    len(feature_cols),
-            "train_size":    len(X_train),
+            "model": "logistic_regression", "C": 1.0,
+            "class_weight": "balanced",
+            "n_features": len(feature_cols),
             "training_secs": round(elapsed, 1),
         })
 
-        # Top 5 most important features by coefficient magnitude
         coef_importance = sorted(
             zip(feature_cols, abs(model.coef_[0])),
             key=lambda x: x[1], reverse=True
@@ -182,35 +138,18 @@ def train_logistic_regression():
         logger.info(f"  Val  AUC: {val_auc:.4f}  |  AP: {val_ap:.4f}")
         logger.info(f"  Test AUC: {test_auc:.4f}  |  AP: {test_ap:.4f}")
         logger.info(f"  Training time: {elapsed:.1f}s")
-        logger.info(f"\n  Top 5 features by coefficient:")
+        logger.info(f"\n  Top 5 features:")
         for feat, coef in coef_importance:
             logger.info(f"    {feat:<25} {coef:.4f}")
 
-        return {
-            "model": "logistic_regression",
-            "val_auc": val_auc,
-            "test_auc": test_auc,
-        }
+        return {"model": "logistic_regression",
+                "val_auc": val_auc, "test_auc": test_auc}
 
 
 # ── Model 2: XGBoost ──────────────────────────────────────────────────────────
 
 def train_xgboost():
-    """
-    Brain 2 — XGBoost on tabular features.
-
-    This is the main baseline. XGBoost is what most companies
-    actually use for problems like this. The deep learning models
-    only earn their place by clearly beating this.
-
-    What it adds over LR:
-      - Captures non-linear relationships
-      - Automatic feature interactions
-      - Built-in handling of missing values
-
-    What it still cannot do:
-      - Understand event sequences and temporal order
-    """
+    """Brain 2 — main tabular baseline."""
     logger.info("=" * 55)
     logger.info("Training Brain 2: XGBoost")
     logger.info("=" * 55)
@@ -218,7 +157,7 @@ def train_xgboost():
     try:
         import xgboost as xgb
     except ImportError:
-        logger.error("xgboost not installed. Run: pip install xgboost")
+        logger.error("xgboost not installed.")
         return
 
     mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
@@ -228,34 +167,20 @@ def train_xgboost():
         load_tabular_splits()
     )
 
-    # Compute scale_pos_weight to handle class imbalance
-    # = number of negatives / number of positives
     scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
     logger.info(f"scale_pos_weight: {scale_pos_weight:.1f}")
 
     params = {
-        "n_estimators":      500,
-        "learning_rate":     0.05,
-        "max_depth":         6,
-        "min_child_weight":  5,
-        "subsample":         0.8,
-        "colsample_bytree":  0.8,
-        "scale_pos_weight":  scale_pos_weight,
-        "eval_metric":       "auc",
-        "random_state":      cfg.sequence.random_seed,
-        "n_jobs":            -1,
+        "n_estimators": 500, "learning_rate": 0.05, "max_depth": 6,
+        "min_child_weight": 5, "subsample": 0.8, "colsample_bytree": 0.8,
+        "scale_pos_weight": scale_pos_weight, "eval_metric": "auc",
+        "random_state": cfg.sequence.random_seed, "n_jobs": -1,
     }
 
     with mlflow.start_run(run_name="xgboost"):
         t0 = time.time()
-
         model = xgb.XGBClassifier(**params)
-        model.fit(
-            X_train, y_train,
-            eval_set=[(X_val, y_val)],
-            verbose=50,
-        )
-
+        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=50)
         elapsed = time.time() - t0
 
         val_proba  = model.predict_proba(X_val)[:, 1]
@@ -263,10 +188,8 @@ def train_xgboost():
 
         val_auc,  val_ap  = log_metrics(y_val,  val_proba,  "val")
         test_auc, test_ap = log_metrics(y_test, test_proba, "test")
-
         mlflow.log_params({**params, "training_secs": round(elapsed, 1)})
 
-        # Feature importance
         importance = sorted(
             zip(feature_cols, model.feature_importances_),
             key=lambda x: x[1], reverse=True
@@ -276,15 +199,181 @@ def train_xgboost():
         logger.info(f"  Val  AUC: {val_auc:.4f}  |  AP: {val_ap:.4f}")
         logger.info(f"  Test AUC: {test_auc:.4f}  |  AP: {test_ap:.4f}")
         logger.info(f"  Training time: {elapsed:.1f}s")
-        logger.info(f"\n  Top 5 features by importance:")
+        logger.info(f"\n  Top 5 features:")
         for feat, imp in importance:
             logger.info(f"    {feat:<25} {imp:.4f}")
 
-        return {
-            "model":    "xgboost",
-            "val_auc":  val_auc,
-            "test_auc": test_auc,
-        }
+        return {"model": "xgboost",
+                "val_auc": val_auc, "test_auc": test_auc}
+
+
+# ── Shared deep learning training loop ───────────────────────────────────────
+
+def train_deep_model(model, model_name, run_name, epochs=None, lr=None):
+    """Generic training loop for LSTM and Transformer."""
+    import torch
+    import torch.nn as nn
+    from torch.optim import AdamW
+    from sessionscout.model.dataset import load_datasets, make_dataloaders
+
+    epochs = epochs or cfg.training.epochs
+    lr     = lr     or cfg.training.learning_rate
+
+    device = torch.device(
+        "mps"  if torch.backends.mps.is_available()  else
+        "cuda" if torch.cuda.is_available()           else
+        "cpu"
+    )
+    logger.info(f"Device: {device}")
+
+    train_ds, val_ds, test_ds = load_datasets()
+    train_loader, val_loader, test_loader = make_dataloaders(
+        train_ds, val_ds, test_ds
+    )
+
+    model = model.to(device)
+    pos_weight = torch.tensor([cfg.training.pos_weight]).to(device)
+    criterion  = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    optimiser  = AdamW(
+        model.parameters(),
+        lr=lr,
+        weight_decay=cfg.training.weight_decay,
+    )
+
+    best_val_auc   = 0.0
+    patience_count = 0
+    best_state     = None
+
+    mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
+    mlflow.set_experiment(cfg.mlflow.experiment_name)
+
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_params({
+            "model": model_name, "epochs": epochs, "lr": lr,
+            "batch_size": cfg.training.batch_size,
+            "pos_weight": cfg.training.pos_weight,
+            "device": str(device),
+            "n_params": sum(p.numel() for p in model.parameters()),
+        })
+
+        for epoch in range(1, epochs + 1):
+
+            # Training
+            model.train()
+            train_loss = 0.0
+            for batch in train_loader:
+                ids  = batch["input_ids"].to(device)
+                mask = batch["attention_mask"].to(device)
+                y    = batch["label"].to(device)
+
+                logits = model(ids, mask)
+                loss   = criterion(logits, y)
+
+                optimiser.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), cfg.training.grad_clip
+                )
+                optimiser.step()
+                train_loss += loss.item()
+
+            avg_loss = train_loss / len(train_loader)
+
+            # Validation
+            model.eval()
+            all_logits, all_labels = [], []
+            with torch.no_grad():
+                for batch in val_loader:
+                    ids  = batch["input_ids"].to(device)
+                    mask = batch["attention_mask"].to(device)
+                    logits = model(ids, mask)
+                    all_logits.extend(
+                        torch.sigmoid(logits).cpu().tolist()
+                    )
+                    all_labels.extend(batch["label"].tolist())
+
+            val_auc = roc_auc_score(all_labels, all_logits)
+            mlflow.log_metrics(
+                {"train_loss": round(avg_loss, 4),
+                 "val_auc":    round(val_auc, 4)},
+                step=epoch
+            )
+            logger.info(
+                f"  Epoch {epoch:>2}/{epochs} | "
+                f"loss: {avg_loss:.4f} | val AUC: {val_auc:.4f}"
+            )
+
+            # Early stopping
+            if val_auc > best_val_auc:
+                best_val_auc   = val_auc
+                patience_count = 0
+                best_state = {
+                    k: v.cpu().clone()
+                    for k, v in model.state_dict().items()
+                }
+            else:
+                patience_count += 1
+                if patience_count >= cfg.training.early_stopping_patience:
+                    logger.info(
+                        f"  Early stopping at epoch {epoch}"
+                    )
+                    break
+
+        # Test evaluation
+        model.load_state_dict(best_state)
+        model.eval()
+        test_logits, test_labels = [], []
+        with torch.no_grad():
+            for batch in test_loader:
+                ids  = batch["input_ids"].to(device)
+                mask = batch["attention_mask"].to(device)
+                logits = model(ids, mask)
+                test_logits.extend(
+                    torch.sigmoid(logits).cpu().tolist()
+                )
+                test_labels.extend(batch["label"].tolist())
+
+        test_auc = roc_auc_score(test_labels, test_logits)
+        mlflow.log_metric("test_auc", round(test_auc, 4))
+
+        cfg.paths.models_dir.mkdir(parents=True, exist_ok=True)
+        model_path = cfg.paths.models_dir / f"{model_name}_best.pt"
+        torch.save(best_state, model_path)
+        mlflow.log_artifact(str(model_path))
+
+        logger.info(f"\n{model_name} results:")
+        logger.info(f"  Best val AUC: {best_val_auc:.4f}")
+        logger.info(f"  Test AUC:     {test_auc:.4f}")
+        logger.info(f"  Saved →       {model_path}")
+
+        return {"model": model_name,
+                "val_auc": best_val_auc, "test_auc": test_auc}
+
+
+# ── Model 3: LSTM ─────────────────────────────────────────────────────────────
+
+def train_lstm():
+    """Brain 3 — Bidirectional LSTM on event sequences."""
+    logger.info("=" * 55)
+    logger.info("Training Brain 3: Bidirectional LSTM")
+    logger.info("=" * 55)
+    from sessionscout.model.lstm import SessionLSTM
+    model = SessionLSTM()
+    logger.info(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    return train_deep_model(model, "lstm", "lstm")
+
+
+# ── Model 4: Transformer ──────────────────────────────────────────────────────
+
+def train_transformer():
+    """Brain 4 — Transformer encoder on event sequences."""
+    logger.info("=" * 55)
+    logger.info("Training Brain 4: Transformer")
+    logger.info("=" * 55)
+    from sessionscout.model.transformer import SessionTransformer
+    model = SessionTransformer()
+    logger.info(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")
+    return train_deep_model(model, "transformer", "transformer")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -295,23 +384,18 @@ def main():
         "--model",
         choices=["lr", "xgb", "lstm", "transformer", "all"],
         default="lr",
-        help="Which model to train"
     )
     args = parser.parse_args()
-
     results = []
 
     if args.model in ("lr", "all"):
         results.append(train_logistic_regression())
-
     if args.model in ("xgb", "all"):
         results.append(train_xgboost())
-
-    if args.model in ("lstm", "transformer", "all"):
-        logger.info(
-            "\nLSTM and Transformer require model/lstm.py "
-            "and model/transformer.py — coming next."
-        )
+    if args.model in ("lstm", "all"):
+        results.append(train_lstm())
+    if args.model in ("transformer", "all"):
+        results.append(train_transformer())
 
     if results:
         logger.info("\n" + "=" * 55)
