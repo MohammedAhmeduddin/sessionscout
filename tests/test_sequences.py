@@ -116,7 +116,8 @@ def test_output_length_always_max_len():
     assert len(r["sequence"]) == cfg.sequence.max_len
 
 def test_purchase_session_label_one():
-    r = build_session_sequence(make_session(["view", "addtocart", "purchase"]))
+    # Purchase session needs min_len non-purchase events after stripping purchase
+    r = build_session_sequence(make_session(["view", "view", "addtocart", "purchase"]))
     assert r is not None
     assert r["label"] == 1
 
@@ -153,10 +154,11 @@ def test_long_session_truncated_to_max_len():
     assert r["seq_len"] == cfg.sequence.max_len
 
 def test_right_aligned_last_token_is_most_recent():
-    r = build_session_sequence(make_session(["view", "view", "purchase"]))
+    # Purchase tokens are stripped — last real token should be ADD_CART
+    r = build_session_sequence(make_session(["view", "view", "addtocart", "purchase"]))
     assert r is not None
-    last_real = next(t for t in reversed(r["sequence"]) if t != cfg.vocab.pad)
-    assert last_real == cfg.vocab.purchase
+    last = next(t for t in reversed(r["sequence"]) if t != cfg.vocab.pad)
+    assert last == cfg.vocab.add_cart
 
 def test_n_views_counted_correctly():
     r = build_session_sequence(make_session(["view", "view", "view", "addtocart"]))
@@ -168,10 +170,14 @@ def test_n_carts_counted_correctly():
     assert r is not None
     assert r["n_carts"] == 2
 
-def test_purchase_token_present_in_converted_session():
-    r = build_session_sequence(make_session(["view", "addtocart", "purchase"]))
+def test_purchase_token_not_in_sequence():
+    # Purchase tokens are intentionally excluded from sequences
+    # to prevent data leakage — label comes from purchase presence
+    # but model only sees browsing behavior
+    r = build_session_sequence(make_session(["view", "view", "addtocart", "purchase"]))
     assert r is not None
-    assert cfg.vocab.purchase in r["sequence"]
+    assert r["label"] == 1                          # label IS set
+    assert cfg.vocab.purchase not in r["sequence"]  # token is NOT in sequence
 
 def test_seq_len_matches_non_pad_count():
     r = build_session_sequence(make_session(["view", "view", "addtocart"]))
