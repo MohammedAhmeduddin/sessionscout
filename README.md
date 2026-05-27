@@ -2,11 +2,14 @@
 
 > Real-time e-commerce session conversion scoring engine
 
+**[🚀 Live Demo](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout)** | **[GitHub](https://github.com/MohammedAhmeduddin/sessionscout)**
+
 [![CI](https://github.com/MohammedAhmeduddin/sessionscout/actions/workflows/ci.yml/badge.svg)](https://github.com/MohammedAhmeduddin/sessionscout/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.2-orange)
 ![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)
 ![Tests](https://img.shields.io/badge/tests-121%20passing-brightgreen)
+[![Demo](https://img.shields.io/badge/🤗-Live%20Demo-yellow)](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout)
 
 SessionScout predicts whether an active browsing session will convert to a purchase — before the user leaves — so e-commerce sites can intervene only where it matters.
 
@@ -101,3 +104,83 @@ docker-compose up --build
 ## Architecture
 
 ![alt text](image.png)
+
+---
+
+Raw events (Retail Rocket + OTTO)
+↓
+features/sequences.py — tokenize events, inject gap tokens
+features/engineering.py — 13 tabular features
+↓
+model/train.py — 4-model ladder with MLflow tracking
+↓
+models/lstm_best.pt — best model weights
+↓
+api/main.py (FastAPI) — load once, serve at 27ms
+api/routes/predict.py — POST /predict with Redis cache
+api/routes/batch.py — POST /batch for nightly scoring
+
+---
+
+## Data
+
+| Dataset       | Events | Sessions | Source                                          |
+| ------------- | ------ | -------- | ----------------------------------------------- |
+| Retail Rocket | 2.7M   | 1.4M     | kaggle.com/retailrocket/ecommerce-dataset       |
+| OTTO          | 220M   | 12M      | kaggle.com/competitions/otto-recommender-system |
+
+Both free on Kaggle. Combined they produce 245K clean sessions for the dev pipeline.
+
+---
+
+## Interpretability
+
+**SHAP (XGBoost):**
+`n_carts` dominates — number of cart events is the strongest single predictor, followed by `gap_ratio` (inactivity fraction) and `cart_rate` (views-to-cart conversion rate).
+
+**Attention (Transformer):**
+Every VIEW event attends strongly to the ADD_CART event (weight 0.56). ADD_CART attends to GAP_LONG (weight 0.32). The model learned that the hesitation gap between carting and returning is the key signal.
+
+---
+
+## Business impact
+
+Conservative estimate (AOV=$65, 10% uplift, Precision@500=0.35):
+
+| AOV  | Uplift 5%  | Uplift 10% | Uplift 15% |
+| ---- | ---------- | ---------- | ---------- |
+| $45  | -$125/day  | $1,000/day | $2,125/day |
+| $65  | $375/day   | $2,000/day | $3,625/day |
+| $85  | $875/day   | $3,000/day | $5,125/day |
+| $120 | $1,750/day | $4,750/day | $7,750/day |
+
+All assumptions documented in `scripts/sensitivity_analysis.py`. Real impact requires A/B testing.
+
+---
+
+## Limitations
+
+1. **Data scope** — Retail Rocket is from 2015, one anonymous retailer. Results may not generalise to all verticals without retraining.
+2. **Short sessions** — Median sequence length is 7 events. The Transformer's long-range attention advantage does not apply here, which is why the LSTM wins.
+3. **No price or category features** — A production version would add these as auxiliary features alongside the event sequence.
+4. **Dev dataset** — All results are from the 50K OTTO dev pipeline. Full 12M session results will differ.
+
+---
+
+## Tech stack
+
+| Layer            | Tools                          |
+| ---------------- | ------------------------------ |
+| Data             | Pandas, PyArrow, NumPy         |
+| Modeling         | PyTorch, Scikit-learn, XGBoost |
+| Tracking         | MLflow                         |
+| Interpretability | SHAP, Matplotlib               |
+| Serving          | FastAPI, Uvicorn, Redis        |
+| Infrastructure   | Docker, GitHub Actions         |
+| Testing          | pytest, pytest-cov             |
+
+---
+
+## Made by
+
+[Ahmeduddin Mohammed](https://github.com/MohammedAhmeduddin)
