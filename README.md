@@ -400,7 +400,6 @@ HuggingFace Spaces — huggingface.co/spaces/AhmeduddinMohammed/sessionscout
 **Ahmeduddin Mohammed**
 - GitHub: [@MohammedAhmeduddin](https://github.com/MohammedAhmeduddin)
 - LinkedIn: [linkedin.com/in/mohammed-ahmeduddin](https://www.linkedin.com/in/mohammed-ahmeduddin/)
-- Portfolio: [SessionScout](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout) · [CareAgent](https://huggingface.co/spaces/AhmeduddinMohammed/careagent)
 
 ---
 
