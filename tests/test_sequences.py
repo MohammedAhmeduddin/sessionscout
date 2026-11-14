@@ -167,7 +167,9 @@ def test_left_padding_with_zeros():
 
 
 def test_all_tokens_in_valid_range():
-    r = build_session_sequence(make_session(["view", "addtocart", "purchase"] * 5))
+    r = build_session_sequence(
+        make_session(["view", "view", "addtocart", "purchase"] * 5)
+    )
     assert r is not None
     assert all(0 <= t < cfg.vocab.size for t in r["sequence"])
 
@@ -237,3 +239,68 @@ def test_model_vocab_size_matches_vocab_config():
 
 def test_pos_weight_positive():
     assert cfg.training.pos_weight > 0
+
+
+# ── Label-leak regression tests (found via the live demo, 2026-11-13) ────────
+
+
+def _session(rows):
+    import pandas as pd
+
+    return pd.DataFrame(rows, columns=["timestamp_sec", "event_type"])
+
+
+def test_buyer_sequence_never_ends_with_gap():
+    """A pause right before a purchase must not survive as a trailing gap token."""
+    from sessionscout.features.sequences import build_session_sequence
+
+    r = build_session_sequence(
+        _session([(0, "view"), (30, "addtocart"), (60, "view"), (400, "purchase")])
+    )
+    tokens = [t for t in r["sequence"] if t != cfg.vocab.pad]
+    assert r["label"] == 1
+    assert tokens[-1] not in (cfg.vocab.gap_short, cfg.vocab.gap_long)
+
+
+def test_post_purchase_events_are_dropped():
+    from sessionscout.features.sequences import build_session_sequence
+
+    r = build_session_sequence(
+        _session(
+            [
+                (0, "view"),
+                (30, "addtocart"),
+                (60, "view"),
+                (90, "purchase"),
+                (2000, "view"),
+            ]
+        )
+    )
+    tokens = [t for t in r["sequence"] if t != cfg.vocab.pad]
+    assert tokens == [cfg.vocab.view, cfg.vocab.add_cart, cfg.vocab.view]
+    assert r["n_views"] == 2 and r["n_carts"] == 1
+
+
+def test_buyer_with_too_little_history_is_dropped():
+    from sessionscout.features.sequences import build_session_sequence
+
+    r = build_session_sequence(
+        _session([(0, "view"), (30, "purchase"), (60, "view"), (90, "view")])
+    )
+    assert r is None
+
+
+def test_non_buyer_unchanged():
+    from sessionscout.features.sequences import build_session_sequence
+
+    r = build_session_sequence(
+        _session([(0, "view"), (30, "addtocart"), (330, "view")])
+    )
+    tokens = [t for t in r["sequence"] if t != cfg.vocab.pad]
+    assert r["label"] == 0
+    assert tokens == [
+        cfg.vocab.view,
+        cfg.vocab.add_cart,
+        cfg.vocab.gap_short,
+        cfg.vocab.view,
+    ]
