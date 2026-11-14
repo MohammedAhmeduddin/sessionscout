@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+import torch._dynamo  # noqa: F401  # load before tests patch torch.backends.mps (torch>=2.6)
 from torch.utils.data import DataLoader
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
