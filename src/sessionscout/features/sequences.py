@@ -132,13 +132,25 @@ def build_session_sequence(session_events: pd.DataFrame) -> Optional[Dict]:
     if len(raw_events) < cfg.sequence.min_len:
         return None
 
-    # Label and counts from original events (before any filtering)
+    # Label from the full session
     original_types = [ev for _, ev in raw_events]
     label = int("purchase" in original_types)
-    n_views = original_types.count("view")
-    n_carts = original_types.count("addtocart")
 
-    # Inject gap tokens
+    # Anti-leakage: keep only what happened BEFORE the first purchase.
+    # Gaps must be injected after this cut. Injecting first and stripping
+    # PURCHASE later left a trailing gap token in buyer sessions only
+    # (a label leak) and kept post-purchase browsing in the sequence.
+    if label:
+        first_purchase = original_types.index("purchase")
+        raw_events = raw_events[:first_purchase]
+        if len(raw_events) < cfg.sequence.min_len:
+            return None
+
+    pre_types = [ev for _, ev in raw_events]
+    n_views = pre_types.count("view")
+    n_carts = pre_types.count("addtocart")
+
+    # Inject gap tokens (only between pre-purchase events)
     events_with_gaps = inject_gap_tokens(raw_events)
 
     # Convert to token IDs — PURCHASE intentionally excluded
