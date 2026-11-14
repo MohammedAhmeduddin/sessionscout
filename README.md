@@ -1,226 +1,225 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white"/>
-<img src="https://img.shields.io/badge/PyTorch-2.2-EE4C2C?style=flat-square&logo=pytorch&logoColor=white"/>
-<img src="https://img.shields.io/badge/FastAPI-0.110-009688?style=flat-square&logo=fastapi&logoColor=white"/>
-<img src="https://img.shields.io/badge/Tests-121%20passed-22C55E?style=flat-square"/>
-<img src="https://img.shields.io/badge/Coverage-93%25-22C55E?style=flat-square"/>
-<img src="https://img.shields.io/badge/LSTM%20AUC-0.9868-7C3AED?style=flat-square"/>
-<img src="https://img.shields.io/badge/HuggingFace-Spaces-FFD21E?style=flat-square&logo=huggingface&logoColor=black"/>
-<img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white"/>
+# SessionScout
 
-<br/><br/>
+**Real-time purchase-intent scoring for e-commerce sessions**
 
-# SessionScout 🔍
-
-### Real-time E-commerce Session Conversion Scoring
-
-*Predicts whether an active browsing session will convert to a purchase — before the user leaves — so e-commerce sites can intervene only where it matters. Scores a session in **27ms**.*
-
-<br/>
+Scores a live browsing session in **27 ms** so a store can intervene only with shoppers who are likely to buy but hesitating.
 
 [![CI](https://github.com/MohammedAhmeduddin/sessionscout/actions/workflows/ci.yml/badge.svg)](https://github.com/MohammedAhmeduddin/sessionscout/actions/workflows/ci.yml)
-[![Live Demo](https://img.shields.io/badge/Demo-Live%20on%20HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout)
-[![API Docs](https://img.shields.io/badge/API-Swagger%20UI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](http://localhost:8000/docs)
+![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-LSTM%20%7C%20Transformer-EE4C2C?logo=pytorch&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Redis-009688?logo=fastapi&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-125%20passed-22C55E)
+![Coverage](https://img.shields.io/badge/coverage-93%25-22C55E)
+![Test AUC](https://img.shields.io/badge/LSTM%20test%20AUC-0.958-7C3AED)
 
-<br/>
+[**Live demo**](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout) · [**Portfolio**](https://ahmed-portfolio-blue.vercel.app) · [**LinkedIn**](https://www.linkedin.com/in/mohammed-ahmeduddin/)
 
 </div>
 
 ---
 
-## Live Demo
+## Overview
 
-| Component | URL |
-|---|---|
-| 🎛️ **Interactive Demo** | [huggingface.co/spaces/AhmeduddinMohammed/sessionscout](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout) |
-| ⚡ **API** | `http://localhost:8000` (run locally) |
-| 📖 **API Docs** | `http://localhost:8000/docs` |
-| 💻 **GitHub** | [github.com/MohammedAhmeduddin/sessionscout](https://github.com/MohammedAhmeduddin/sessionscout) |
+Most e-commerce sessions end without a purchase: only **7.6%** of the 241,773 sessions in this project convert. Retargeting tools usually send the same discount to everyone who leaves, which wastes money on two groups:
 
-**Try this sequence in the demo — a hesitating buyer:**
+- shoppers who were going to buy anyway, and
+- shoppers who were never going to buy.
 
-| Step | Event | Probability | Action |
-|---|---|---|---|
-| 1 | 👁 VIEW | ~0.04 | 🔴 Do nothing |
-| 2 | 👁 VIEW | ~0.04 | 🔴 Do nothing |
-| 3 | 🛒 ADD_CART | ~0.23 | 🟠 Monitor |
-| 4 | ⏳ GAP_LONG | ~0.65 | 🟡 Show reminder |
-| 5 | 👁 VIEW (returns) | **~0.71** | 🟢 **Send discount now** |
+The group worth targeting is the **hesitating buyer**: someone who added to cart, paused, and came back. SessionScout reads the *sequence* of a session (views, add-to-carts and pauses) and scores purchase intent after every action, so an intervention fires only where it can change the outcome.
 
----
-
-## The Problem
-
-72% of e-commerce sessions abandon. Most retargeting tools fire the same discount at every abandoning user. But there are three types of leaving user:
-
-- **Was always going to buy** — got a phone call, coming back. Sending a discount wastes money.
-- **Genuinely hesitating** — added to cart, paused 5 minutes, came back to look again. A small nudge tips them over. **This is the target.**
-- **Never going to buy** — price comparing, just browsing. No intervention works.
-
-A rule-based system cannot tell them apart. SessionScout reads the **sequence of behavior** and scores the probability in real time.
-
----
-
-## Key Results
+## Results
 
 | Metric | Value |
 |---|---|
-| Best model | **LSTM — 0.9868 val AUC, 0.9883 test AUC** |
-| API latency | **27ms** per session (CPU) |
-| Batch latency | **6ms** for 2 sessions |
-| Training data | **245,503 sessions** from Retail Rocket + OTTO |
-| Sequence vocabulary | **6 tokens** — PAD, VIEW, ADD_CART, PURCHASE, GAP_SHORT, GAP_LONG |
-| Top SHAP feature | **n_carts (2.23)** — cart count dominates |
-| Test coverage | **93%** across 121 tests |
-| CI/CD | GitHub Actions — green on Python 3.10 and 3.11 |
+| Best model | **Bidirectional LSTM: 0.9563 val AUC, 0.9582 test AUC** |
+| Lift over best tabular model | **+0.019 AUC** over XGBoost |
+| Inference latency | **27 ms** per session (CPU), **6 ms** for a 2-session batch |
+| Training data | **241,773 sessions** (Retail Rocket + OTTO) |
+| Quality | **125 tests, 93% coverage**, CI on Python 3.10 and 3.11 |
 
----
-
-## Model Ladder
+### Model comparison
 
 | Model | Val AUC | Test AUC | Notes |
 |---|---|---|---|
-| Logistic Regression | 0.9575 | 0.9573 | Tabular features baseline — AUC floor |
-| XGBoost | 0.9748 | 0.9750 | Non-linear tabular — 500 trees, depth 6 |
-| **LSTM (winner)** | **0.9868** | **0.9883** | Bidirectional, 170K params, MPS-accelerated |
-| Transformer | 0.9814 | 0.9841 | 4-head encoder, 69K params |
+| Logistic Regression | 0.9357 | 0.9393 | Tabular baseline |
+| XGBoost | 0.9371 | 0.9386 | 500 trees, depth 6 |
+| **LSTM** | **0.9563** | **0.9582** | Bidirectional, 2 layers, 170K parameters |
+| Transformer | 0.9555 | 0.9571 | 2 encoder layers, 4 heads, 69K parameters |
 
-**Honest finding:** The LSTM beat the Transformer. Sessions have a median length of 7 events — too short for long-range attention to provide an advantage over sequential memory. The Transformer is parameter-efficient (69K vs 170K) but needs longer sequences to exploit attention. This is documented, not hidden.
+**Findings**
+
+- Sequence models beat tabular models by about 0.02 AUC: the order and timing of events carry signal that counts alone miss.
+- The LSTM edges the Transformer only slightly. With a median session length of 6 events, long-range attention has little to add; the Transformer matches the LSTM with 2.5× fewer parameters.
 
 ---
 
-## Architecture
+## Engineering note: a label leak, found and fixed
+
+While testing the live demo, sessions ending in a pause scored close to 1.0. Tracing it back showed that gap tokens were injected **before** the PURCHASE event was removed, so a pause right before buying survived as a trailing gap token. That made "ends with a pause" a perfect predictor of a purchase.
+
+| | Sessions ending in a gap token | Share that were buyers |
+|---|---|---|
+| Before the fix | 5,640 | **100%** |
+| After the fix | 0 | — |
+
+**Fix.** Each session is now cut at the first purchase, and gap tokens are injected only after that cut. This also removes any browsing that happened after the purchase.
+
+**Impact.** All four models were retrained. The leak had inflated validation AUC by 0.02–0.04 (LSTM 0.9868 → 0.9563). The LSTM remained the best model, so its advantage is real. Four regression tests now guard against the leak.
+
+---
+
+## How it works
 
 ```
-Raw events (Retail Rocket + OTTO datasets)
-         │
-         ▼
-features/sequences.py          — tokenize events, inject gap tokens
-features/engineering.py        — 13 tabular features (leak-free)
-         │
-         ▼
-model/train.py                 — 4-model ladder with MLflow tracking
-         │
-         ├── logistic_regression  (val AUC 0.9575)
-         ├── xgboost              (val AUC 0.9748)
-         ├── lstm                 (val AUC 0.9868) ← winner
-         └── transformer          (val AUC 0.9814)
-         │
-         ▼
-models/lstm_best.pt            — best weights saved to disk
-         │
-         ▼
-api/main.py (FastAPI)          — model loads ONCE at startup
-api/routes/predict.py          — POST /predict · 27ms · Redis cache
-api/routes/batch.py            — POST /batch · 6ms for 2 sessions
-         │
-         ▼
-Docker + GitHub Actions CI     — containerized, tested, deployed
+Raw events (Retail Rocket + OTTO)
+        │
+        ▼
+features/sequences.py      Cut each session at the first purchase, tokenize events,
+                           insert GAP_SHORT (2–10 min) and GAP_LONG (10+ min) tokens
+features/engineering.py    13 tabular features for the baseline models
+        │
+        ▼
+model/train.py             Train LR, XGBoost, LSTM and Transformer; log every run to MLflow
+        │
+        ▼
+models/lstm_best.pt        Best model weights
+        │
+        ▼
+api/main.py                FastAPI app; model loads once at startup
+api/routes/predict.py      POST /api/v1/predict   27 ms, Redis cache (5-min TTL)
+api/routes/batch.py        POST /api/v1/batch     6 ms for 2 sessions
+        │
+        ▼
+Docker + GitHub Actions    Containerized service with CI on every push
 ```
 
-See [`docs/production_architecture.md`](docs/production_architecture.md) for the Kafka + Flink + Feature Store at-scale version.
+**Token vocabulary:** `PAD=0  VIEW=1  ADD_CART=2  PURCHASE=3  GAP_SHORT=4  GAP_LONG=5`
+
+**Leakage controls**
+
+- The label comes from whether a purchase happened; the model only sees events **before** the first purchase.
+- No sequence ends in a gap token (verified on the full dataset).
+- Purchase-derived features (`n_purchases`, `last_event`) are excluded, and view and cart counts use pre-purchase events only.
+
+A scaled-out design (Kafka, Flink, feature store) is described in [`docs/production_architecture.md`](docs/production_architecture.md).
 
 ---
 
 ## Interpretability
 
-### SHAP — XGBoost Feature Importance
+**SHAP on XGBoost: top drivers by mean |SHAP|**
 
 | Rank | Feature | Mean \|SHAP\| | Meaning |
 |---|---|---|---|
-| 1 | `n_carts` | **2.23** | Cart count — strongest single signal |
-| 2 | `gap_ratio` | 0.92 | Fraction of session spent inactive |
-| 3 | `cart_rate` | 0.78 | Views that resulted in cart actions |
-| 4 | `n_gap_short` | 0.60 | Short pauses (2–10 min) |
-| 5 | `seq_len` | 0.31 | Total session length |
+| 1 | `n_carts` | **2.34** | Number of add-to-cart events |
+| 2 | `source_otto` | 0.54 | Which store the session came from |
+| 3 | `cart_rate` | 0.27 | Share of views that led to a cart action |
+| 4 | `n_gap_long` | 0.18 | Pauses of 10+ minutes |
+| 5 | `n_gap_short` | 0.18 | Pauses of 2–10 minutes |
 
-### Attention — Transformer Head Analysis
+**Transformer attention**
 
-The Transformer learned the hesitation pattern without being told:
+- In converting sessions, **GAP_LONG attends to ADD_CART (0.33)**: the model links a long pause back to the cart action, which is the hesitation pattern.
+- VIEW events consistently attend to ADD_CART: 0.32 in converting sessions and 0.55 in non-converting ones.
 
-- **VIEW → ADD_CART** attention weight **0.56** — every VIEW event attends strongly to the cart action
-- **ADD_CART → GAP_LONG** attention weight **0.32** — the model reads the gap after carting as a key signal
+SHAP shows *which* signals matter. Attention shows *how* events relate to each other in time.
 
-XGBoost knew *that* cart events matter. The Transformer knows *how the cart event relates to surrounding events in time*. These are complementary explanations of the same underlying signal.
+---
+
+## Live demo
+
+[Open the demo on Hugging Face](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout) and build a session one event at a time.
+
+| Step | Event | Score | What it means |
+|---|---|---|---|
+| 1 | VIEW | — | Scoring starts at 3 events |
+| 2 | VIEW | — | |
+| 3 | ADD_CART | **0.904** | High intent |
+| 4 | GAP_LONG | — | Pause recorded; the score updates on the next action |
+| 5 | VIEW (returns) | **0.589** | Intent dropped after the pause: show a reminder |
+
+A browsing-only session (five VIEW events) scores **0.027**.
+
+Scores rank sessions by purchase intent. The model is trained with class weighting, so they are not calibrated probabilities.
 
 ---
 
 ## API
 
+**Score one session**
+
 ```bash
-# Single session score
 curl -X POST http://localhost:8000/api/v1/predict \
   -H "Content-Type: application/json" \
-  -d '{"session_id": "user_001", "sequence": [1, 1, 2, 5, 1, 1]}'
+  -d '{"session_id": "user_001", "sequence": [1, 1, 2, 5, 1]}'
 ```
 
 ```json
 {
   "session_id": "user_001",
-  "conversion_probability": 0.697,
-  "top_signals": ["VIEW×4", "ADD_CART×1", "GAP_LONG×1"],
+  "conversion_probability": 0.589,
+  "top_signals": ["VIEW×3", "ADD_CART×1", "GAP_LONG×1"],
   "cached": false,
   "latency_ms": 27.06
 }
 ```
 
+**Score a batch**
+
 ```bash
-# Batch scoring — nightly job pattern
 curl -X POST http://localhost:8000/api/v1/batch \
   -H "Content-Type: application/json" \
-  -d '{
-    "sessions": [
-      {"session_id": "user_A", "sequence": [1, 1, 2, 5, 1]},
-      {"session_id": "user_B", "sequence": [1, 1, 1, 1, 1]}
-    ]
-  }'
+  -d '{"sessions": [
+        {"session_id": "user_A", "sequence": [1, 1, 2, 5, 1]},
+        {"session_id": "user_B", "sequence": [1, 1, 1, 1, 1]}
+      ]}'
 ```
 
 ```json
 {
   "results": [
-    {"session_id": "user_A", "conversion_probability": 0.7065},
-    {"session_id": "user_B", "conversion_probability": 0.0376}
+    {"session_id": "user_A", "conversion_probability": 0.589},
+    {"session_id": "user_B", "conversion_probability": 0.027}
   ],
   "total": 2,
   "latency_ms": 6.07
 }
 ```
 
-**Token vocabulary:** `PAD=0  VIEW=1  ADD_CART=2  PURCHASE=3  GAP_SHORT=4  GAP_LONG=5`
+Interactive API docs are served at `http://localhost:8000/docs` when the API is running.
 
 ---
 
-## Quickstart
+## Getting started
+
+**Requirements:** Python 3.10+, a Kaggle account (for the datasets), and Docker (optional).
 
 ```bash
-# 1. Clone
+# 1. Clone and install
 git clone https://github.com/MohammedAhmeduddin/sessionscout.git
 cd sessionscout
-
-# 2. Install
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# 3. Download data (requires Kaggle credentials)
+# 2. Download data (needs Kaggle credentials)
 make download-all
 
-# 4. Run dev pipeline (~5 min, 50K OTTO sessions)
+# 3. Build sequences and features (dev set, about 5 minutes)
 make pipeline-dev
 
-# 5. Train all 4 models
+# 4. Train all four models
 make train
 
-# 6. Start API
+# 5. Serve the API at http://localhost:8000/docs
 make api
-# → http://localhost:8000/docs
 
-# 7. Run live session simulator
+# 6. Replay a live session
 make simulate
 ```
 
-### Docker
+**Run with Docker**
 
 ```bash
 docker-compose up --build
@@ -230,179 +229,121 @@ docker-compose up --build
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 sessionscout/
 ├── src/sessionscout/
-│   ├── config.py                    # Single source of truth — cfg object
+│   ├── config.py                    # Single source of truth for all settings
 │   ├── features/
-│   │   ├── sequences.py             # Raw events → padded token sequences
-│   │   └── engineering.py          # 13 tabular features, leak-free
+│   │   ├── sequences.py             # Events → token sequences (leak-safe)
+│   │   └── engineering.py           # 13 tabular features
 │   ├── model/
-│   │   ├── dataset.py              # PyTorch Dataset + attention masks
-│   │   ├── lstm.py                 # Bidirectional LSTM (winner — 170K params)
-│   │   ├── transformer.py          # Transformer encoder (69K params)
-│   │   ├── train.py                # Training loop + MLflow logging
-│   │   └── evaluate.py             # Metrics + comparison table
+│   │   ├── dataset.py               # PyTorch Dataset + attention masks
+│   │   ├── lstm.py                  # Bidirectional LSTM (170K params)
+│   │   ├── transformer.py           # Transformer encoder (69K params)
+│   │   ├── train.py                 # Training loop + MLflow logging
+│   │   └── evaluate.py              # Metrics + comparison table
 │   ├── explainability/
-│   │   ├── shap_deep.py            # SHAP feature importance for XGBoost
-│   │   └── attention_viz.py        # Transformer attention heatmaps
+│   │   ├── shap_deep.py             # SHAP feature importance (XGBoost)
+│   │   └── attention_viz.py         # Transformer attention heatmaps
 │   └── api/
-│       ├── main.py                 # FastAPI app — model loads once at startup
+│       ├── main.py                  # FastAPI app; model loads once at startup
 │       └── routes/
-│           ├── predict.py          # POST /predict — 27ms, Redis cache
-│           └── batch.py            # POST /batch — 6ms for 2 sessions
-├── tests/                          # 121 tests, 93% coverage
-│   ├── test_sequences.py           # 34 tests — tokenization, gap injection
-│   ├── test_models.py              # 15 tests — LSTM + Transformer architecture
-│   ├── test_api.py                 # 20 tests — endpoints, validation, mock model
-│   ├── test_features.py            # 17 tests — feature engineering pipeline
-│   ├── test_training.py            # 22 tests — training loop, MLflow mocked
-│   └── test_explainability.py      # 13 tests — SHAP + attention viz
+│           ├── predict.py           # POST /api/v1/predict (Redis cache)
+│           └── batch.py             # POST /api/v1/batch
+├── tests/                           # 125 tests, 93% coverage
+│   ├── test_sequences.py            # 38 tests: tokenization, gaps, leak regression
+│   ├── test_models.py               # 15 tests: LSTM + Transformer architecture
+│   ├── test_api.py                  # 20 tests: endpoints, validation
+│   ├── test_features.py             # 17 tests: feature pipeline
+│   ├── test_training.py             # 22 tests: training loop, early stopping
+│   └── test_explainability.py       # 13 tests: SHAP + attention
 ├── scripts/
-│   ├── simulate_session.py         # Live session replay demo
-│   ├── sensitivity_analysis.py     # Business impact table
-│   └── run_pipeline.py             # Full pipeline orchestrator
+│   ├── run_pipeline.py              # Pipeline orchestrator
+│   ├── simulate_session.py          # Live session replay
+│   └── sensitivity_analysis.py      # Business impact model
 ├── docs/
-│   └── production_architecture.md  # Kafka + Flink + Feature Store design
+│   └── production_architecture.md   # Kafka + Flink + feature store design
 ├── Dockerfile
-├── docker-compose.yml              # API + Redis
-└── .github/workflows/ci.yml        # Lint + Tests (3.10, 3.11) + Validate
+├── docker-compose.yml               # API + Redis
+├── Makefile                         # Pipeline, training and serving commands
+└── .github/workflows/ci.yml         # Lint, tests (3.10, 3.11), validation
 ```
 
 ---
 
-## Business Impact
+## Testing and CI
 
-Conservative estimate (AOV=$65, 10% uplift, Precision@500=0.35, $2.50/intervention):
+```bash
+pytest -q                       # full suite: 125 tests
+pytest --cov=src/sessionscout   # coverage report
+```
 
-| AOV | Uplift 5% | Uplift 10% | Uplift 15% |
+GitHub Actions runs on every push and pull request to `main`:
+
+| Job | What it checks |
+|---|---|
+| Lint | `ruff` and `black` (versions pinned) |
+| Tests (3.10, 3.11) | Data-pipeline tests, including the leak regression tests |
+| Validate | Config loads, features import, LSTM and Transformer forward passes |
+
+---
+
+## Business impact (illustrative)
+
+Daily value of targeting the top 500 sessions, assuming precision of 0.35 and a $2.50 cost per intervention:
+
+| Average order value | 5% uplift | 10% uplift | 15% uplift |
 |---|---|---|---|
-| $45 | -$125/day | $1,000/day | $2,125/day |
+| $45 | −$125/day | $1,000/day | $2,125/day |
 | $65 | $375/day | $2,000/day | $3,625/day |
 | $85 | $875/day | $3,000/day | $5,125/day |
 | $120 | $1,750/day | $4,750/day | $7,750/day |
 
-At $85 AOV and 10% uplift: **$3,000/day → $1.1M/year**.
-
-Note the bottom-left cell: at low AOV ($45) and low uplift (5%), the system costs more than it recovers. This is the honest finding that tells you the minimum viable deployment conditions.
-
-All assumptions documented in `scripts/sensitivity_analysis.py`. **Real impact requires A/B testing.**
+The negative cell matters: with low order values and low uplift, interventions cost more than they recover. These figures are assumptions (see `scripts/sensitivity_analysis.py`); real impact requires an A/B test.
 
 ---
 
 ## Data
 
-| Dataset | Events | Sessions | License |
+| Dataset | Events | Sessions | Source |
 |---|---|---|---|
-| Retail Rocket | 2.7M | 1.4M | [Kaggle — retailrocket/ecommerce-dataset](https://kaggle.com/retailrocket/ecommerce-dataset) |
-| OTTO | 220M | 12M | [Kaggle — otto-recommender-system](https://kaggle.com/competitions/otto-recommender-system) |
+| Retail Rocket | 2.7M | 1.4M | [Kaggle](https://kaggle.com/retailrocket/ecommerce-dataset) |
+| OTTO | 220M | 12M | [Kaggle](https://kaggle.com/competitions/otto-recommender-system) |
 
-Both free on Kaggle. The dev pipeline uses 50K OTTO sessions (~5 min). Full pipeline uses all 12M (~45 min).
-
-**Anti-leakage design:**
-- PURCHASE tokens stripped from sequences — label set from purchase presence, but model only sees browsing behavior
-- `n_purchases` and `last_event` removed from tabular features
-- Gap tokens injected between events (120s = GAP_SHORT, 600s = GAP_LONG)
+The dev pipeline uses all Retail Rocket sessions plus 50,000 OTTO sessions, which yields 241,773 sessions after filtering.
 
 ---
 
-## Testing Strategy
+## Limitations and next steps
 
-```
-tests/
-├── test_sequences.py    34 tests  — tokenization, gap injection, left-padding, anti-leakage
-├── test_models.py       15 tests  — output shapes, gradient flow, parameter counts
-├── test_api.py          20 tests  — endpoints, request validation, mock model fixture
-├── test_features.py     17 tests  — feature pipeline, no-null guarantee, value ranges
-├── test_training.py     22 tests  — training loop, early stopping, XGBoost mocked (MPS safety)
-└── test_explainability.py 13 tests — SHAP computation, attention heatmap generation
-```
-
-XGBoost is mocked in training tests to avoid Apple Silicon MPS + XGBoost segfault — a real production constraint documented honestly.
-
----
-
-## Tech Stack
-
-| Layer | Tools | Why |
+| Area | Current state | Next step |
 |---|---|---|
-| Data | Pandas, PyArrow, NumPy | Parquet pipeline, fast I/O |
-| Modeling | PyTorch, Scikit-learn, XGBoost | Deep learning + tabular baselines |
-| Tracking | MLflow | All 4 runs tracked, AUC per epoch |
-| Interpretability | SHAP, Matplotlib | XGBoost features + Transformer attention |
-| Serving | FastAPI, Uvicorn, Redis | 27ms inference, 5-min cache TTL |
-| Infrastructure | Docker, GitHub Actions | Containerized, CI on every push |
-| Testing | pytest, pytest-cov | 93% coverage gate |
+| Calibration | Scores rank sessions but are not calibrated probabilities | Fit isotonic calibration on the validation set |
+| Data scope | Two public datasets; Retail Rocket is from 2015 | Retrain on the target retailer's data |
+| Features | Event sequence + 13 tabular features; no price or category | Add item embeddings as an auxiliary input |
+| Dataset size | Dev set with 50K OTTO sessions | Run the full 12M-session pipeline |
+| Evaluation | Precision@500 measured on a small test set | Evaluate on a larger held-out set |
 
 ---
 
-## CI/CD
+## Tech stack
 
-GitHub Actions runs on every push to `main`:
-
-```
-Push to main
-    │
-    ├── Job: Lint
-    │   ├── ruff check src/ tests/ scripts/
-    │   └── black --check --target-version py311
-    │
-    ├── Job: Tests (Python 3.10)
-    │   ├── pip install -e ".[dev]"
-    │   └── pytest tests/test_sequences.py
-    │
-    ├── Job: Tests (Python 3.11)
-    │   └── pytest tests/test_sequences.py --cov
-    │
-    └── Job: Validate
-        ├── Config loads correctly (vocab_size=6, max_len=64)
-        ├── Feature imports work
-        └── LSTM + Transformer forward pass (random batch)
-```
-
----
-
-## Limitations
-
-| Area | Current state | What changes it |
-|---|---|---|
-| **Data scope** | Retail Rocket (2015, 1 retailer) | Retrain on target retailer's data |
-| **Short sessions** | Median 7 events — LSTM beats Transformer | Transformer wins on longer sessions |
-| **No price/category features** | Sequence + 13 tabular only | Add item embeddings as auxiliary input |
-| **Dev dataset** | 50K OTTO sessions | Full 12M pipeline pending |
-| **Precision@500** | 1.0 on small test set — overstated | Needs larger held-out evaluation set |
-
----
-
-## Resume Bullets
-
-```
-Built 4-model ladder (LR → XGB → LSTM → Transformer) for e-commerce session conversion
-prediction on 245K real sessions; LSTM achieved 0.9868 val AUC — 1.2 pts over XGBoost
-baseline — with honest documented finding that LSTM outperforms Transformer on short sequences
-
-Deployed real-time scoring API with FastAPI at 27ms latency, Redis caching, and batch
-endpoint at 6ms; containerized with Docker + docker-compose including Redis sidecar
-
-Built SHAP interpretability showing n_carts (SHAP=2.23) and gap_ratio (0.92) as top
-drivers; Transformer attention analysis revealed VIEW→ADD_CART (0.56) hesitation pattern
-
-121 tests, 93% coverage, GitHub Actions CI on Python 3.10 and 3.11; live demo on
-HuggingFace Spaces — huggingface.co/spaces/AhmeduddinMohammed/sessionscout
-```
+| Layer | Tools |
+|---|---|
+| Data | Pandas, PyArrow, NumPy |
+| Modeling | PyTorch, scikit-learn, XGBoost |
+| Experiment tracking | MLflow |
+| Interpretability | SHAP, attention analysis, Matplotlib |
+| Serving | FastAPI, Uvicorn, Redis |
+| Infrastructure | Docker, docker-compose, GitHub Actions |
+| Testing | pytest, pytest-cov |
 
 ---
 
 ## Author
 
-**Ahmeduddin Mohammed**
-- GitHub: [@MohammedAhmeduddin](https://github.com/MohammedAhmeduddin)
-- LinkedIn: [linkedin.com/in/mohammed-ahmeduddin](https://www.linkedin.com/in/mohammed-ahmeduddin/)
+**Ahmeduddin Mohammed** — ML Engineer
 
----
-
-<div align="center">
-<sub>Built with PyTorch · FastAPI · XGBoost · SHAP · MLflow · Docker · GitHub Actions</sub>
-</div>
+[Portfolio](https://ahmed-portfolio-blue.vercel.app) · [LinkedIn](https://www.linkedin.com/in/mohammed-ahmeduddin/) · [GitHub](https://github.com/MohammedAhmeduddin)
