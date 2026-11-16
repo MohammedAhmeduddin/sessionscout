@@ -113,7 +113,7 @@ class BusinessConfig:
 class MLflowConfig:
     tracking_uri: str = os.getenv("MLFLOW_TRACKING_URI", str(ROOT_DIR / "mlruns"))
     experiment_name: str = "sessionscout-conversion"
-    registered_model_name: str = "sessionscout-transformer"
+    registered_model_name: str = "sessionscout-lstm"
 
 
 @dataclass
