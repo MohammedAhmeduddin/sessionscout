@@ -44,6 +44,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from sessionscout.config import cfg
+from sessionscout.validation import validate_sequence
 
 API_URL = "http://localhost:8000/api/v1/predict"
 
@@ -182,6 +183,22 @@ def simulate(session_id: str, tokens: list, label: int, delay: float = 0.8):
         current_sequence.append(token)
         event_name = TOKEN_DISPLAY.get(token, f"tok_{token}")
 
+        # The API only scores sessions the model can handle (3+ events,
+        # never ending on a gap). Until then, show the event without a score.
+        if validate_sequence(current_sequence) is not None:
+            if token in (cfg.vocab.gap_short, cfg.vocab.gap_long):
+                gap = "2-10 min" if token == cfg.vocab.gap_short else "10+ min"
+                why = f"pause ({gap}) recorded; scored on the next action"
+            else:
+                why = "scoring starts at 3 events"
+            print(
+                f"  Event {i+1:>2}/{len(tokens)}  "
+                f"{BLUE}{event_name}{RESET}  "
+                f"│  {YELLOW}{why}{RESET}"
+            )
+            time.sleep(delay)
+            continue
+
         # Call the API
         result = call_predict(session_id, current_sequence)
         prob = result["conversion_probability"]
@@ -198,16 +215,13 @@ def simulate(session_id: str, tokens: list, label: int, delay: float = 0.8):
 
         # Show action recommendation at decision points
         if token == cfg.vocab.add_cart:
-            print(f"           {YELLOW}↑ Cart detected — probability spike{RESET}")
-        elif token in (cfg.vocab.gap_short, cfg.vocab.gap_long):
-            gap = "2-10 min" if token == cfg.vocab.gap_short else "10+ min"
-            print(f"           {YELLOW}⏸ Inactivity ({gap}) — hesitation signal{RESET}")
+            print(f"           {YELLOW}↑ Cart action{RESET}")
         elif (
             token == cfg.vocab.view
             and i > 0
             and tokens[i - 1] in (cfg.vocab.gap_short, cfg.vocab.gap_long)
         ):
-            print(f"           {GREEN}↩ Returned after gap — strong buy signal{RESET}")
+            print(f"           {GREEN}↩ Returned after a pause{RESET}")
 
         time.sleep(delay)
 

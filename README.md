@@ -10,7 +10,7 @@ Scores a live browsing session in **27 ms** so a store can intervene only with s
 ![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-3776AB?logo=python&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-LSTM%20%7C%20Transformer-EE4C2C?logo=pytorch&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Redis-009688?logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-144%20passed-22C55E)
+![Tests](https://img.shields.io/badge/tests-145%20passed-22C55E)
 ![Coverage](https://img.shields.io/badge/coverage-94%25-22C55E)
 ![Test AUC](https://img.shields.io/badge/LSTM%20test%20AUC-0.958-7C3AED)
 
@@ -37,7 +37,7 @@ The group worth targeting is the **hesitating buyer**: someone who added to cart
 | Lift over best tabular model | **+0.019 AUC** over XGBoost |
 | Inference latency | **27 ms** per session (CPU), **6 ms** for a 2-session batch |
 | Training data | **241,773 sessions** (Retail Rocket + OTTO) |
-| Quality | **144 tests, 94% coverage**, CI on Python 3.10 and 3.11 |
+| Quality | **145 tests, 94% coverage**, full suite in CI on Python 3.10 and 3.11 |
 
 ### Model comparison
 
@@ -214,6 +214,8 @@ make download-all
 make pipeline-dev
 
 # 4. Train all four models
+#    On Apple Silicon, if training stalls on the GPU, force CPU:
+#    SESSIONSCOUT_DEVICE=cpu make train
 make train
 
 # 5. Serve the API at http://localhost:8000/docs
@@ -223,7 +225,7 @@ make api
 make simulate
 ```
 
-**Run with Docker**
+**Run with Docker** (train first: the image includes `models/lstm_best.pt`, which is not stored in git)
 
 ```bash
 docker-compose up --build
@@ -257,11 +259,12 @@ sessionscout/
 │       └── routes/
 │           ├── predict.py           # POST /api/v1/predict (Redis cache)
 │           └── batch.py             # POST /api/v1/batch
-├── tests/                           # 144 tests, 94% coverage
+├── tests/                           # 145 tests, 94% coverage
 │   ├── test_sequences.py            # 38 tests: tokenization, gaps, leak regression
 │   ├── test_models.py               # 15 tests: LSTM + Transformer architecture
 │   ├── test_api.py                  # 20 tests: endpoints, validation
 │   ├── test_api_edge_cases.py       # 19 tests: bad input, caching, Redis failure, batch
+│   ├── test_simulate.py             # 1 test: simulator only sends valid sessions
 │   ├── test_features.py             # 17 tests: feature pipeline
 │   ├── test_training.py             # 22 tests: training loop, early stopping
 │   └── test_explainability.py       # 13 tests: SHAP + attention
@@ -282,7 +285,7 @@ sessionscout/
 ## Testing and CI
 
 ```bash
-pytest -q                       # full suite: 144 tests
+pytest -q                       # full suite: 145 tests
 pytest --cov=src/sessionscout   # coverage report
 ```
 
@@ -291,7 +294,7 @@ GitHub Actions runs on every push and pull request to `main`:
 | Job | What it checks |
 |---|---|
 | Lint | `ruff` and `black` (versions pinned) |
-| Tests (3.10, 3.11) | Data-pipeline tests, including the leak regression tests |
+| Tests (3.10, 3.11) | Full suite: pipeline, models, training, API, edge cases, leak regression |
 | Validate | Config loads, features import, LSTM and Transformer forward passes |
 
 ---

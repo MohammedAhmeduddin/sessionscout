@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import logging
+import os
 import sys
 import time
 
@@ -230,10 +231,17 @@ def train_deep_model(model, model_name, run_name, epochs=None, lr=None):
     epochs = epochs or cfg.training.epochs
     lr = lr or cfg.training.learning_rate
 
+    # SESSIONSCOUT_DEVICE=cpu|cuda|mps overrides auto-detection.
+    # Use cpu on Apple Silicon if training stalls on mps (seen with
+    # bidirectional LSTMs on recent PyTorch versions).
+    forced = os.getenv("SESSIONSCOUT_DEVICE")
     device = torch.device(
-        "mps"
-        if torch.backends.mps.is_available()
-        else "cuda" if torch.cuda.is_available() else "cpu"
+        forced
+        or (
+            "mps"
+            if torch.backends.mps.is_available()
+            else "cuda" if torch.cuda.is_available() else "cpu"
+        )
     )
     logger.info(f"Device: {device}")
 
