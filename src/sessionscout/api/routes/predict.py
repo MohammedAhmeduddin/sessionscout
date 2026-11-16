@@ -5,14 +5,20 @@ POST /api/v1/predict
   Input:  session_id + sequence of up to 64 token IDs
   Output: conversion probability + top signals
 
+Validation:
+  Sequences the model never saw in training (unknown tokens, PURCHASE/PAD,
+  fewer than 3 events, leading/trailing/double gaps) get a 422 with the
+  reason. See sessionscout/validation.py.
+
 Redis caching:
-  Cache key = "{session_id}:{seq_len}"
-  Why seq_len in the key? Because the same session grows as the
-  user browses. session_123:5 and session_123:8 are different
-  states of the same session — both get cached separately.
+  Cache key = "predict:{session_id}:{hash of the full sequence}"
+  Hashing the whole sequence (not just its length) means a session only
+  hits the cache when its events are exactly the same.
   TTL = 5 minutes (cfg.api.cache_ttl_seconds)
+  If Redis fails mid-request, the API logs a warning and scores without it.
 """
 
+import hashlib
 import json
 import logging
 import time
@@ -20,9 +26,10 @@ from typing import List
 
 import torch
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from sessionscout.config import cfg, VOCAB
+from sessionscout.validation import MAX_INPUT_EVENTS, validate_sequence
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -37,13 +44,21 @@ class PredictRequest(BaseModel):
         ...,
         description=(
             "List of token IDs representing the session's event sequence. "
-            "Length must be between 1 and 64. "
-            "Tokens: PAD=0, VIEW=1, ADD_CART=2, PURCHASE=3, "
-            "GAP_SHORT=4, GAP_LONG=5"
+            "At least 3 events; longer sessions are scored on their last 64. "
+            "Tokens: VIEW=1, ADD_CART=2, GAP_SHORT=4, GAP_LONG=5. "
+            "Gaps go between two events, never first or last."
         ),
         min_length=1,
-        max_length=cfg.sequence.max_len,
+        max_length=MAX_INPUT_EVENTS,
     )
+
+    @field_validator("sequence")
+    @classmethod
+    def sequence_must_be_in_distribution(cls, sequence: List[int]) -> List[int]:
+        reason = validate_sequence(sequence)
+        if reason:
+            raise ValueError(reason)
+        return sequence
 
     model_config = {
         "json_schema_extra": {
@@ -103,6 +118,33 @@ def get_top_signals(sequence: List[int], top_k: int = 3) -> List[str]:
     return [f"{name}×{count}" for name, count in ranked[:top_k]]
 
 
+def cache_key(session_id: str, sequence: List[int]) -> str:
+    """Key on the exact event sequence, so different events never share a score."""
+    digest = hashlib.sha1(",".join(map(str, sequence)).encode()).hexdigest()[:16]
+    return f"predict:{session_id}:{digest}"
+
+
+def cache_get(redis, key: str):
+    """Read from Redis; on any Redis failure, log it and behave like a miss."""
+    if redis is None:
+        return None
+    try:
+        return redis.get(key)
+    except Exception as e:
+        logger.warning(f"Redis read failed ({e}); scoring without cache.")
+        return None
+
+
+def cache_set(redis, key: str, value: str) -> None:
+    """Write to Redis; on any Redis failure, log it and carry on."""
+    if redis is None:
+        return
+    try:
+        redis.setex(key, cfg.api.cache_ttl_seconds, value)
+    except Exception as e:
+        logger.warning(f"Redis write failed ({e}); result not cached.")
+
+
 def run_inference(model, sequence: List[int]) -> float:
     """Run model inference and return conversion probability."""
     padded = pad_sequence(sequence)
@@ -136,16 +178,15 @@ async def predict(req: PredictRequest, request: Request):
     model = request.app.state.model
     redis = request.app.state.redis
 
-    cache_key = f"predict:{req.session_id}:{len(req.sequence)}"
+    key = cache_key(req.session_id, req.sequence)
 
     # ── Check Redis cache ──────────────────────────────────────────
-    if redis is not None:
-        cached_result = redis.get(cache_key)
-        if cached_result is not None:
-            data = json.loads(cached_result)
-            data["cached"] = True
-            data["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 2)
-            return PredictResponse(**data)
+    cached_result = cache_get(redis, key)
+    if cached_result is not None:
+        data = json.loads(cached_result)
+        data["cached"] = True
+        data["latency_ms"] = round((time.perf_counter() - t_start) * 1000, 2)
+        return PredictResponse(**data)
 
     # ── Run inference ──────────────────────────────────────────────
     prob = run_inference(model, req.sequence)
@@ -161,12 +202,11 @@ async def predict(req: PredictRequest, request: Request):
     }
 
     # ── Store in Redis ─────────────────────────────────────────────
-    if redis is not None:
-        redis.setex(
-            cache_key,
-            cfg.api.cache_ttl_seconds,
-            json.dumps({k: v for k, v in result.items() if k != "latency_ms"}),
-        )
+    cache_set(
+        redis,
+        key,
+        json.dumps({k: v for k, v in result.items() if k != "latency_ms"}),
+    )
 
     logger.info(
         f"predict | session={req.session_id} | " f"prob={prob:.4f} | {latency_ms:.1f}ms"

@@ -10,8 +10,8 @@ Scores a live browsing session in **27 ms** so a store can intervene only with s
 ![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11-3776AB?logo=python&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-LSTM%20%7C%20Transformer-EE4C2C?logo=pytorch&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Redis-009688?logo=fastapi&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-125%20passed-22C55E)
-![Coverage](https://img.shields.io/badge/coverage-93%25-22C55E)
+![Tests](https://img.shields.io/badge/tests-144%20passed-22C55E)
+![Coverage](https://img.shields.io/badge/coverage-94%25-22C55E)
 ![Test AUC](https://img.shields.io/badge/LSTM%20test%20AUC-0.958-7C3AED)
 
 [**Live demo**](https://huggingface.co/spaces/AhmeduddinMohammed/sessionscout) · [**Portfolio**](https://ahmed-portfolio-blue.vercel.app) · [**LinkedIn**](https://www.linkedin.com/in/mohammed-ahmeduddin/)
@@ -37,7 +37,7 @@ The group worth targeting is the **hesitating buyer**: someone who added to cart
 | Lift over best tabular model | **+0.019 AUC** over XGBoost |
 | Inference latency | **27 ms** per session (CPU), **6 ms** for a 2-session batch |
 | Training data | **241,773 sessions** (Retail Rocket + OTTO) |
-| Quality | **125 tests, 93% coverage**, CI on Python 3.10 and 3.11 |
+| Quality | **144 tests, 94% coverage**, CI on Python 3.10 and 3.11 |
 
 ### Model comparison
 
@@ -188,6 +188,10 @@ curl -X POST http://localhost:8000/api/v1/batch \
 }
 ```
 
+**Input rules.** Requests are validated against what the model saw in training: tokens 1, 2, 4 and 5 only; at least 3 events; gap tokens only between two events (never first, last or doubled). Anything else returns `422` with the reason. In a batch, an invalid session gets `"conversion_probability": null` and an `"error"` message while the rest are still scored. Sessions longer than 64 events are scored on their last 64.
+
+**Caching.** Results are cached in Redis for 5 minutes, keyed on the session ID plus a hash of the full sequence. If Redis fails, the API keeps scoring without the cache.
+
 Interactive API docs are served at `http://localhost:8000/docs` when the API is running.
 
 ---
@@ -235,6 +239,7 @@ docker-compose up --build
 sessionscout/
 ├── src/sessionscout/
 │   ├── config.py                    # Single source of truth for all settings
+│   ├── validation.py                # Input rules shared by the API endpoints
 │   ├── features/
 │   │   ├── sequences.py             # Events → token sequences (leak-safe)
 │   │   └── engineering.py           # 13 tabular features
@@ -252,10 +257,11 @@ sessionscout/
 │       └── routes/
 │           ├── predict.py           # POST /api/v1/predict (Redis cache)
 │           └── batch.py             # POST /api/v1/batch
-├── tests/                           # 125 tests, 93% coverage
+├── tests/                           # 144 tests, 94% coverage
 │   ├── test_sequences.py            # 38 tests: tokenization, gaps, leak regression
 │   ├── test_models.py               # 15 tests: LSTM + Transformer architecture
 │   ├── test_api.py                  # 20 tests: endpoints, validation
+│   ├── test_api_edge_cases.py       # 19 tests: bad input, caching, Redis failure, batch
 │   ├── test_features.py             # 17 tests: feature pipeline
 │   ├── test_training.py             # 22 tests: training loop, early stopping
 │   └── test_explainability.py       # 13 tests: SHAP + attention
@@ -276,7 +282,7 @@ sessionscout/
 ## Testing and CI
 
 ```bash
-pytest -q                       # full suite: 125 tests
+pytest -q                       # full suite: 144 tests
 pytest --cov=src/sessionscout   # coverage report
 ```
 

@@ -125,13 +125,13 @@ class TestPredict:
         assert resp.status_code == 422  # Validation error
 
     def test_predict_rejects_sequence_too_long(self, client):
-        from sessionscout.config import cfg
+        from sessionscout.validation import MAX_INPUT_EVENTS
 
         resp = client.post(
             "/api/v1/predict",
             json={
                 "session_id": "long_session",
-                "sequence": [1] * (cfg.sequence.max_len + 1),
+                "sequence": [1] * (MAX_INPUT_EVENTS + 1),
             },
         )
         assert resp.status_code == 422
@@ -196,7 +196,7 @@ class TestBatch:
     def test_batch_response_schema(self, client):
         resp = client.post(
             "/api/v1/batch",
-            json={"sessions": [{"session_id": "x", "sequence": [1, 2]}]},
+            json={"sessions": [{"session_id": "x", "sequence": [1, 2, 1]}]},
         )
         data = resp.json()
         assert "results" in data
@@ -223,7 +223,7 @@ class TestBatch:
     def test_batch_each_result_has_probability(self, client):
         resp = client.post(
             "/api/v1/batch",
-            json={"sessions": [{"session_id": "t", "sequence": [1, 2]}]},
+            json={"sessions": [{"session_id": "t", "sequence": [1, 2, 1]}]},
         )
         result = resp.json()["results"][0]
         assert "session_id" in result

@@ -13,11 +13,16 @@ Why batch matters:
 
   We process in mini-batches of 256 to avoid running out of
   memory if someone sends 10,000 sessions at once.
+
+Validation:
+  Each session is checked on its own (sessionscout/validation.py).
+  An invalid session gets conversion_probability=null and an "error"
+  message; the valid sessions in the same request are still scored.
 """
 
 import logging
 import time
-from typing import List
+from typing import List, Optional
 
 import torch
 from fastapi import APIRouter, Request
@@ -25,6 +30,7 @@ from pydantic import BaseModel, Field
 
 from sessionscout.config import cfg
 from sessionscout.api.routes.predict import pad_sequence
+from sessionscout.validation import MAX_INPUT_EVENTS, validate_sequence
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,7 +38,7 @@ router = APIRouter()
 
 class BatchItem(BaseModel):
     session_id: str
-    sequence: List[int] = Field(min_length=1, max_length=cfg.sequence.max_len)
+    sequence: List[int] = Field(min_length=1, max_length=MAX_INPUT_EVENTS)
 
 
 class BatchRequest(BaseModel):
@@ -57,7 +63,8 @@ class BatchRequest(BaseModel):
 
 class BatchResultItem(BaseModel):
     session_id: str
-    conversion_probability: float
+    conversion_probability: Optional[float] = None
+    error: Optional[str] = None
 
 
 class BatchResponse(BaseModel):
@@ -77,9 +84,12 @@ async def batch_predict(req: BatchRequest, request: Request):
     t_start = time.perf_counter()
     model = request.app.state.model
 
-    # Pad all sequences to max_len
-    padded_seqs = [pad_sequence(item.sequence) for item in req.sessions]
-    session_ids = [item.session_id for item in req.sessions]
+    # Validate each session on its own; only valid ones go to the model
+    errors = [validate_sequence(item.sequence) for item in req.sessions]
+    valid = [item for item, err in zip(req.sessions, errors) if err is None]
+
+    # Pad valid sequences to max_len (longer ones keep their last 64 events)
+    padded_seqs = [pad_sequence(item.sequence) for item in valid]
 
     all_probs = []
     mini_batch_size = 256
@@ -95,12 +105,18 @@ async def batch_predict(req: BatchRequest, request: Request):
 
         all_probs.extend(probs)
 
+    # Rebuild results in input order: a score for valid sessions, a reason otherwise
+    probs = iter(all_probs)
     results = [
-        BatchResultItem(
-            session_id=sid,
-            conversion_probability=round(prob, 4),
+        (
+            BatchResultItem(session_id=item.session_id, error=err)
+            if err
+            else BatchResultItem(
+                session_id=item.session_id,
+                conversion_probability=round(next(probs), 4),
+            )
         )
-        for sid, prob in zip(session_ids, all_probs)
+        for item, err in zip(req.sessions, errors)
     ]
 
     latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
